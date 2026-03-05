@@ -245,7 +245,7 @@ export default function ImportWizard({ onImportComplete }: ImportWizardProps) {
                 {dragging ? 'Drop it here!' : 'Drop your CSV or click to browse'}
               </p>
               <p className="text-text-muted text-sm mt-1">
-                TradeStation · Order History export from TradingView
+                TradeStation · Order History CSV export
               </p>
               <p className="text-text-dim text-xs mt-2">CSV · Max 10 MB</p>
             </div>
@@ -263,12 +263,12 @@ export default function ImportWizard({ onImportComplete }: ImportWizardProps) {
         )}
 
         <div className="bg-surface border border-border rounded-xl p-4">
-          <p className="text-text-muted text-xs font-medium mb-3 uppercase tracking-wider">How to export from TradingView</p>
+          <p className="text-text-muted text-xs font-medium mb-3 uppercase tracking-wider">How to export from TradeStation</p>
           <ol className="text-text-dim text-sm space-y-2">
             {[
-              'Open TradingView and connect your TradeStation account',
-              'Go to the bottom panel → Order History tab',
-              'Click the Export icon → Export Data → Order History',
+              'Log in to TradeStation Web (web.tradestation.com)',
+              'Go to Accounts → Order History',
+              'Set your desired date range, then click Export (↓ icon)',
               'Upload the downloaded CSV file here',
             ].map((s, i) => (
               <li key={i} className="flex items-start gap-2">
