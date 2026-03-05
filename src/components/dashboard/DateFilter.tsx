@@ -10,6 +10,8 @@ interface Props {
 }
 
 const PRESETS: { label: string; value: DatePreset }[] = [
+  { label: 'Today', value: 'today' },
+  { label: 'Yesterday', value: 'yesterday' },
   { label: 'This Week', value: 'this_week' },
   { label: 'Last Week', value: 'last_week' },
   { label: 'This Month', value: 'this_month' },

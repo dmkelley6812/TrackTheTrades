@@ -1,4 +1,4 @@
-import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfYear, endOfYear, subWeeks, subMonths, subYears } from 'date-fns'
+import { format, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfYear, endOfYear, subDays, subWeeks, subMonths, subYears } from 'date-fns'
 import type { DatePreset, DateRange, DailyPnl, CumulativePnl, TradeStats, DbTrade } from '../types'
 
 // ─── Currency Formatting ──────────────────────────────────────────────────────
@@ -42,6 +42,12 @@ export function getDateRange(preset: DatePreset, customStart?: Date, customEnd?:
   const now = new Date()
 
   switch (preset) {
+    case 'today':
+      return { start: startOfDay(now), end: endOfDay(now), preset }
+    case 'yesterday': {
+      const yesterday = subDays(now, 1)
+      return { start: startOfDay(yesterday), end: endOfDay(yesterday), preset }
+    }
     case 'this_week':
       return {
         start: startOfWeek(now, { weekStartsOn: 1 }),

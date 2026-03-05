@@ -160,6 +160,8 @@ export interface CumulativePnl {
 // ─── Date Filter Types ────────────────────────────────────────────────────────
 
 export type DatePreset =
+  | 'today'
+  | 'yesterday'
   | 'this_week'
   | 'last_week'
   | 'this_month'
