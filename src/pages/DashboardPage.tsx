@@ -11,7 +11,7 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
-import { getDateRange, computeStats, computeDailyPnl, computeCumulativePnl } from '../lib/utils'
+import { getDateRange, computeStats, computeDailyPnl, computeCumulativePnl, formatLocalDate } from '../lib/utils'
 import { useAuth } from '../contexts/AuthContext'
 import type { DbTrade, DateRange } from '../types'
 import DateFilter from '../components/dashboard/DateFilter'
@@ -103,8 +103,8 @@ export default function DashboardPage() {
   useEffect(() => {
     if (!user) return
     setLoading(true)
-    const start = dateRange.start.toISOString().split('T')[0]
-    const end = dateRange.end.toISOString().split('T')[0]
+    const start = formatLocalDate(dateRange.start)
+    const end = formatLocalDate(dateRange.end)
     supabase
       .from('trades')
       .select('*')

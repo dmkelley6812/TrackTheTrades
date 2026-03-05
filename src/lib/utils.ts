@@ -83,6 +83,10 @@ export function getDateRange(preset: DatePreset, customStart?: Date, customEnd?:
   }
 }
 
+export function formatLocalDate(date: Date): string {
+  return format(date, 'yyyy-MM-dd')
+}
+
 export function formatDateRangeLabel(range: DateRange): string {
   return `${format(range.start, 'MMM d')} – ${format(range.end, 'MMM d, yyyy')}`
 }

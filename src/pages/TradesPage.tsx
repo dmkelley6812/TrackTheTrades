@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import toast from 'react-hot-toast'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
-import { getDateRange, computeStats } from '../lib/utils'
+import { getDateRange, computeStats, formatLocalDate } from '../lib/utils'
 import type { DbTrade, DateRange } from '../types'
 import DateFilter from '../components/dashboard/DateFilter'
 import TradesTable from '../components/trades/TradesTable'
@@ -17,8 +17,8 @@ export default function TradesPage() {
   useEffect(() => {
     if (!user) return
     setLoading(true)
-    const start = dateRange.start.toISOString().split('T')[0]
-    const end = dateRange.end.toISOString().split('T')[0]
+    const start = formatLocalDate(dateRange.start)
+    const end = formatLocalDate(dateRange.end)
     supabase
       .from('trades')
       .select('*')
