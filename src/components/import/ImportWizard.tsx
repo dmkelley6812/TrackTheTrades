@@ -10,6 +10,7 @@ import { matchTrades, tradeToDbInsert } from '../../lib/trade-matcher'
 import { useAuth } from '../../contexts/AuthContext'
 import type { MatchedTrade, ParsedOrder } from '../../types'
 import { formatCurrency, formatDuration } from '../../lib/utils'
+import { format } from 'date-fns'
 
 type Step = 'upload' | 'preview' | 'importing' | 'done'
 
@@ -344,7 +345,7 @@ export default function ImportWizard({ onImportComplete }: ImportWizardProps) {
                 <thead className="sticky top-0 bg-base z-10">
                   <tr className="border-b border-border/50">
                     <th className="w-8 px-4 py-2.5" />
-                    {['Dir', 'Symbol', 'Qty', 'Entry', 'Exit', 'Duration', 'Gross P&L', 'Commission', 'Net P&L'].map(h => (
+                    {['Dir', 'Symbol', 'Date', 'Entry', 'Exit', 'Duration', 'Gross P&L', 'Commission', 'Net P&L'].map(h => (
                       <th key={h} className="text-left text-text-dim font-medium px-4 py-2.5 uppercase tracking-wider whitespace-nowrap">{h}</th>
                     ))}
                   </tr>
@@ -376,9 +377,16 @@ export default function ImportWizard({ onImportComplete }: ImportWizardProps) {
                           </span>
                         </td>
                         <td className="px-4 py-2.5 font-mono text-text-primary">{trade.symbol}</td>
-                        <td className="px-4 py-2.5 font-mono text-text-muted">{trade.qty}</td>
-                        <td className="px-4 py-2.5 font-mono text-text-muted">{trade.entryPrice.toFixed(2)}</td>
-                        <td className="px-4 py-2.5 font-mono text-text-muted">{trade.exitPrice.toFixed(2)}</td>
+                        <td className="px-4 py-2.5 whitespace-nowrap">
+                          <div className="font-mono text-text-primary">{format(trade.entryTime, 'MMM d, yyyy')}</div>
+                          <div className="text-text-dim text-[10px]">{format(trade.entryTime, 'HH:mm:ss')} – {format(trade.exitTime, 'HH:mm:ss')}</div>
+                        </td>
+                        <td className="px-4 py-2.5 whitespace-nowrap">
+                          <div className="font-mono text-text-muted">{trade.entryPrice.toFixed(2)}</div>
+                        </td>
+                        <td className="px-4 py-2.5 whitespace-nowrap">
+                          <div className="font-mono text-text-muted">{trade.exitPrice.toFixed(2)}</div>
+                        </td>
                         <td className="px-4 py-2.5 text-text-dim whitespace-nowrap">{formatDuration(trade.durationSeconds)}</td>
                         <td className="px-4 py-2.5">
                           <span className={`font-mono font-semibold ${trade.grossPnl >= 0 ? 'text-profit' : 'text-loss'}`}>
