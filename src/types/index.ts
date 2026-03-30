@@ -157,6 +157,20 @@ export interface CumulativePnl {
   daily: number
 }
 
+export interface WeeklyStats {
+  weekStart: string   // YYYY-MM-DD (Monday)
+  weekEnd: string     // YYYY-MM-DD (Sunday)
+  weekLabel: string   // e.g. "Mar 24 – Mar 30"
+  netPnl: number
+  tradeCount: number
+  winCount: number
+  lossCount: number
+  winRate: number
+  profitFactor: number
+  bestDay: number
+  worstDay: number
+}
+
 // ─── Date Filter Types ────────────────────────────────────────────────────────
 
 export type DatePreset =

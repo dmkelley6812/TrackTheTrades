@@ -1,5 +1,5 @@
-import { format, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfYear, endOfYear, subDays, subWeeks, subMonths, subYears } from 'date-fns'
-import type { DatePreset, DateRange, DailyPnl, CumulativePnl, TradeStats, DbTrade } from '../types'
+import { format, startOfWeek, endOfWeek, startOfDay, endOfDay, startOfMonth, endOfMonth, startOfYear, endOfYear, subDays, subWeeks, subMonths, subYears } from 'date-fns'
+import type { DatePreset, DateRange, DailyPnl, CumulativePnl, TradeStats, DbTrade, WeeklyStats } from '../types'
 
 // ─── Currency Formatting ──────────────────────────────────────────────────────
 
@@ -178,6 +178,49 @@ export function computeCumulativePnl(trades: DbTrade[]): CumulativePnl[] {
     cumulative += d.netPnl
     return { date: d.date, cumulative, daily: d.netPnl }
   })
+}
+
+export function computeWeeklyStats(trades: DbTrade[], weeksBack = 13): WeeklyStats[] {
+  const now = new Date()
+  const result: WeeklyStats[] = []
+
+  for (let i = 0; i < weeksBack; i++) {
+    const ref = subWeeks(now, i)
+    const wStart = startOfWeek(ref, { weekStartsOn: 1 })
+    const wEnd = endOfWeek(ref, { weekStartsOn: 1 })
+    const wStartStr = formatLocalDate(wStart)
+    const wEndStr = formatLocalDate(wEnd)
+
+    const weekTrades = trades.filter(t => t.trade_date >= wStartStr && t.trade_date <= wEndStr)
+
+    const winners = weekTrades.filter(t => t.net_pnl > 0)
+    const losers = weekTrades.filter(t => t.net_pnl < 0)
+    const netPnl = weekTrades.reduce((s, t) => s + t.net_pnl, 0)
+    const grossProfit = winners.reduce((s, t) => s + t.net_pnl, 0)
+    const grossLoss = Math.abs(losers.reduce((s, t) => s + t.net_pnl, 0))
+
+    const dailyMap = new Map<string, number>()
+    for (const t of weekTrades) {
+      dailyMap.set(t.trade_date, (dailyMap.get(t.trade_date) ?? 0) + t.net_pnl)
+    }
+    const dailyValues = Array.from(dailyMap.values())
+
+    result.push({
+      weekStart: wStartStr,
+      weekEnd: wEndStr,
+      weekLabel: `${format(wStart, 'MMM d')} – ${format(wEnd, 'MMM d')}`,
+      netPnl,
+      tradeCount: weekTrades.length,
+      winCount: winners.length,
+      lossCount: losers.length,
+      winRate: weekTrades.length > 0 ? winners.length / weekTrades.length : 0,
+      profitFactor: grossLoss > 0 ? grossProfit / grossLoss : grossProfit > 0 ? Infinity : 0,
+      bestDay: dailyValues.length > 0 ? Math.max(...dailyValues) : 0,
+      worstDay: dailyValues.length > 0 ? Math.min(...dailyValues) : 0,
+    })
+  }
+
+  return result
 }
 
 // ─── Color Helpers ────────────────────────────────────────────────────────────

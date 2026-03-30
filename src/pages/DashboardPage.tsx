@@ -11,27 +11,29 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
-import { getDateRange, computeStats, computeDailyPnl, computeCumulativePnl, formatLocalDate } from '../lib/utils'
+import { getDateRange, computeStats, computeDailyPnl, computeCumulativePnl, computeWeeklyStats, formatLocalDate } from '../lib/utils'
 import { useAuth } from '../contexts/AuthContext'
 import type { DbTrade, DateRange } from '../types'
 import DateFilter from '../components/dashboard/DateFilter'
 import StatsCards from '../components/dashboard/StatsCards'
 import { EquityCurve, DailyBars } from '../components/dashboard/PnlChart'
 import RecentTrades from '../components/dashboard/RecentTrades'
+import WeeklyStatsTable from '../components/dashboard/WeeklyStats'
 import TradeCalendar from '../components/calendar/TradeCalendar'
 
 // ─── Section definitions ──────────────────────────────────────────────────────
 
-type SectionId = 'stats' | 'charts' | 'recent' | 'calendar'
+type SectionId = 'stats' | 'charts' | 'recent' | 'calendar' | 'weekly'
 
 const SECTION_META: Record<SectionId, { label: string; subtitle: string }> = {
   stats:    { label: 'Performance Stats',  subtitle: 'Key metrics for the selected period' },
   charts:   { label: 'Charts',             subtitle: 'Equity curve & daily P&L' },
   recent:   { label: 'Recent Trades',      subtitle: 'Latest trades in selected period' },
   calendar: { label: 'Calendar',           subtitle: 'Click a day to see its trades' },
+  weekly:   { label: 'Weekly Breakdown',   subtitle: 'Last 13 weeks' },
 }
 
-const DEFAULT_ORDER: SectionId[] = ['stats', 'charts', 'recent', 'calendar']
+const DEFAULT_ORDER: SectionId[] = ['stats', 'charts', 'weekly', 'recent', 'calendar']
 const STORAGE_KEY = 'ttt_dashboard_order'
 
 function loadOrder(): SectionId[] {
@@ -135,6 +137,7 @@ export default function DashboardPage() {
   const dailyPnl = computeDailyPnl(trades)
   const cumulativePnl = computeCumulativePnl(trades)
   const allDailyPnl = computeDailyPnl(allTrades)
+  const weeklyStats = computeWeeklyStats(allTrades)
   const sortedByTime = [...trades].sort(
     (a, b) => new Date(b.exit_time).getTime() - new Date(a.exit_time).getTime()
   )
@@ -180,6 +183,8 @@ export default function DashboardPage() {
         return <RecentTrades trades={sortedByTime} loading={loading} />
       case 'calendar':
         return <TradeCalendar dailyPnl={allDailyPnl} trades={allTrades} loading={allLoading} />
+      case 'weekly':
+        return <WeeklyStatsTable data={weeklyStats} loading={allLoading} />
     }
   }
 
