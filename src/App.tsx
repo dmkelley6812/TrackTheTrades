@@ -4,6 +4,7 @@ import { Toaster } from 'react-hot-toast'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import AppLayout from './components/layout/AppLayout'
 import AuthPage from './pages/AuthPage'
+import StatusBanner from './components/layout/StatusBanner'
 
 const DashboardPage = lazy(() => import('./pages/DashboardPage'))
 const TradesPage = lazy(() => import('./pages/TradesPage'))
@@ -66,6 +67,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
+        <StatusBanner />
         <AppRoutes />
         <Toaster
           position="top-right"
