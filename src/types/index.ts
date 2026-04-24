@@ -200,3 +200,49 @@ export interface ImportPreview {
   newTrades: MatchedTrade[]
   duplicateTrades: MatchedTrade[]
 }
+
+// ─── Goal Types ───────────────────────────────────────────────────────────────
+
+export type GoalType =
+  | 'profit_target'    // Reach $X net P&L in a period
+  | 'win_rate'         // Sustain X% win rate
+  | 'consistent_days'  // Hit X profitable trading days
+  | 'consistent_weeks' // Hit X profitable trading weeks
+  | 'profit_factor'    // Achieve X profit factor
+  | 'trade_count'      // Complete X trades
+  | 'max_drawdown'     // Keep max drawdown below $X
+
+export type GoalPeriodType = 'this_week' | 'this_month' | 'this_year' | 'custom' | 'all_time'
+
+export type GoalStatus = 'active' | 'achieved' | 'archived'
+
+export interface DbGoal {
+  id: string
+  user_id: string
+  title: string
+  type: GoalType
+  period: GoalPeriodType
+  period_start: string  // YYYY-MM-DD
+  period_end: string    // YYYY-MM-DD
+  target_value: number
+  status: GoalStatus
+  created_at: string
+  updated_at: string
+}
+
+export interface GoalProgress {
+  goal: DbGoal
+  currentValue: number
+  percentComplete: number      // 0–100
+  remaining: number            // amount/count still needed (or buffer for max_drawdown)
+  paceTarget: number           // where you should be at linear pace right now
+  paceDelta: number            // currentValue - paceTarget (+ = ahead, - = behind)
+  isAchieved: boolean
+  isFailed: boolean            // max_drawdown exceeded its limit
+  projectedDate: string | null // YYYY-MM-DD estimated completion
+  runRatePerDay: number | null  // units per trading day
+  daysRemainingInPeriod: number
+  tradingDaysInPeriod: number  // unique trade_dates seen so far
+  periodTotalDays: number
+  periodDaysElapsed: number
+}

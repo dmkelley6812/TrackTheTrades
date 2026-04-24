@@ -9,6 +9,7 @@ import StatusBanner from './components/layout/StatusBanner'
 const DashboardPage = lazy(() => import('./pages/DashboardPage'))
 const TradesPage = lazy(() => import('./pages/TradesPage'))
 const ImportPage = lazy(() => import('./pages/ImportPage'))
+const GoalsPage = lazy(() => import('./pages/GoalsPage'))
 
 function PageLoader() {
   return (
@@ -57,6 +58,7 @@ function AppRoutes() {
         <Route path="dashboard" element={<Suspense fallback={<PageLoader />}><DashboardPage /></Suspense>} />
         <Route path="trades" element={<Suspense fallback={<PageLoader />}><TradesPage /></Suspense>} />
         <Route path="import" element={<Suspense fallback={<PageLoader />}><ImportPage /></Suspense>} />
+        <Route path="goals" element={<Suspense fallback={<PageLoader />}><GoalsPage /></Suspense>} />
       </Route>
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>

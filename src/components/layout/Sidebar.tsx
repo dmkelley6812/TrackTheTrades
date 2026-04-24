@@ -1,11 +1,12 @@
 import { NavLink } from 'react-router-dom'
-import { TrendingUp, LayoutDashboard, List, Upload, LogOut, ChevronRight } from 'lucide-react'
+import { TrendingUp, LayoutDashboard, List, Upload, LogOut, ChevronRight, Flag } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import toast from 'react-hot-toast'
 
 const NAV = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/trades', icon: List, label: 'Trades' },
+  { to: '/goals', icon: Flag, label: 'Goals' },
   { to: '/import', icon: Upload, label: 'Import' },
 ]
 

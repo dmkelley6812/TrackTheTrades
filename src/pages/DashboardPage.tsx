@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Upload, GripVertical } from 'lucide-react'
+import type { DbGoal } from '../types'
 import {
   DndContext, closestCenter, PointerSensor, KeyboardSensor,
   useSensor, useSensors, type DragEndEvent, DragOverlay, type DragStartEvent,
@@ -14,6 +15,7 @@ import { supabase } from '../lib/supabase'
 import { getDateRange, computeStats, computeDailyPnl, computeCumulativePnl, computeWeeklyStats, formatLocalDate } from '../lib/utils'
 import { useAuth } from '../contexts/AuthContext'
 import type { DbTrade, DateRange } from '../types'
+import GoalsWidget from '../components/dashboard/GoalsWidget'
 import DateFilter from '../components/dashboard/DateFilter'
 import StatsCards from '../components/dashboard/StatsCards'
 import { EquityCurve, DailyBars } from '../components/dashboard/PnlChart'
@@ -23,7 +25,7 @@ import TradeCalendar from '../components/calendar/TradeCalendar'
 
 // ─── Section definitions ──────────────────────────────────────────────────────
 
-type SectionId = 'stats' | 'charts' | 'recent' | 'calendar' | 'weekly'
+type SectionId = 'stats' | 'charts' | 'recent' | 'calendar' | 'weekly' | 'goals'
 
 const SECTION_META: Record<SectionId, { label: string; subtitle: string }> = {
   stats:    { label: 'Performance Stats',  subtitle: 'Key metrics for the selected period' },
@@ -31,9 +33,10 @@ const SECTION_META: Record<SectionId, { label: string; subtitle: string }> = {
   recent:   { label: 'Recent Trades',      subtitle: 'Latest trades in selected period' },
   calendar: { label: 'Calendar',           subtitle: 'Click a day to see its trades' },
   weekly:   { label: 'Weekly Breakdown',   subtitle: 'Last 13 weeks' },
+  goals:    { label: 'Goals',              subtitle: 'Progress toward your trading targets' },
 }
 
-const DEFAULT_ORDER: SectionId[] = ['stats', 'charts', 'weekly', 'recent', 'calendar']
+const DEFAULT_ORDER: SectionId[] = ['goals', 'stats', 'charts', 'weekly', 'recent', 'calendar']
 const STORAGE_KEY = 'ttt_dashboard_order'
 
 function loadOrder(): SectionId[] {
@@ -97,8 +100,10 @@ export default function DashboardPage() {
   const [dateRange, setDateRange] = useState<DateRange>(getDateRange('this_week'))
   const [trades, setTrades] = useState<DbTrade[]>([])
   const [allTrades, setAllTrades] = useState<DbTrade[]>([])
+  const [goals, setGoals] = useState<DbGoal[]>([])
   const [loading, setLoading] = useState(true)
   const [allLoading, setAllLoading] = useState(true)
+  const [goalsLoading, setGoalsLoading] = useState(true)
   const [order, setOrder] = useState<SectionId[]>(loadOrder)
   const [activeId, setActiveId] = useState<SectionId | null>(null)
 
@@ -130,6 +135,15 @@ export default function DashboardPage() {
       .then(({ data, error }) => {
         if (!error) setAllTrades(data ?? [])
         setAllLoading(false)
+      })
+    supabase
+      .from('goals')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+      .then(({ data, error }) => {
+        if (!error) setGoals((data ?? []) as DbGoal[])
+        setGoalsLoading(false)
       })
   }, [user])
 
@@ -185,6 +199,8 @@ export default function DashboardPage() {
         return <TradeCalendar dailyPnl={allDailyPnl} trades={allTrades} loading={allLoading} />
       case 'weekly':
         return <WeeklyStatsTable data={weeklyStats} loading={allLoading} />
+      case 'goals':
+        return <GoalsWidget goals={goals} allTrades={allTrades} loading={goalsLoading || allLoading} />
     }
   }
 
