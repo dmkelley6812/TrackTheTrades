@@ -12,6 +12,7 @@ const TradesPage = lazy(() => import('./pages/TradesPage'))
 const ImportPage = lazy(() => import('./pages/ImportPage'))
 const GoalsPage = lazy(() => import('./pages/GoalsPage'))
 const AccountsPage = lazy(() => import('./pages/AccountsPage'))
+const BadgesPage = lazy(() => import('./pages/BadgesPage'))
 
 function PageLoader() {
   return (
@@ -62,6 +63,7 @@ function AppRoutes() {
         <Route path="import" element={<Suspense fallback={<PageLoader />}><ImportPage /></Suspense>} />
         <Route path="goals" element={<Suspense fallback={<PageLoader />}><GoalsPage /></Suspense>} />
         <Route path="accounts" element={<Suspense fallback={<PageLoader />}><AccountsPage /></Suspense>} />
+        <Route path="badges" element={<Suspense fallback={<PageLoader />}><BadgesPage /></Suspense>} />
       </Route>
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>

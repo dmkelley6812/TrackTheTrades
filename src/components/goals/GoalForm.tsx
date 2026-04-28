@@ -119,7 +119,7 @@ const PERIOD_OPTIONS: { value: GoalPeriodType; label: string }[] = [
 
 interface GoalFormProps {
   onClose: () => void
-  onSave: (data: Omit<DbGoal, 'id' | 'user_id' | 'created_at' | 'updated_at' | 'status'>) => Promise<void>
+  onSave: (data: Omit<DbGoal, 'id' | 'user_id' | 'account_id' | 'created_at' | 'updated_at' | 'status'>) => Promise<void>
 }
 
 export default function GoalForm({ onClose, onSave }: GoalFormProps) {

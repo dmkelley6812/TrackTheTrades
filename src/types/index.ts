@@ -268,3 +268,42 @@ export interface GoalProgress {
   periodTotalDays: number
   periodDaysElapsed: number
 }
+
+// ─── Badge Types ──────────────────────────────────────────────────────────────
+
+export type BadgeCategory = 'milestone' | 'performance' | 'discipline' | 'mastery'
+
+export type BadgeRarity = 'common' | 'rare' | 'epic' | 'legendary'
+
+export interface BadgeProgress {
+  current: number
+  target: number
+}
+
+export interface BadgeDefinition {
+  id: string
+  title: string
+  description: string
+  category: BadgeCategory
+  rarity: BadgeRarity
+  icon: string                                           // lucide icon name
+  progressLabel?: string                                 // optional label shown under progress bar
+  check: (trades: DbTrade[]) => boolean
+  progress?: (trades: DbTrade[]) => BadgeProgress
+}
+
+export interface DbEarnedBadge {
+  id: string
+  user_id: string
+  account_id: string | null
+  badge_id: string
+  earned_at: string
+  created_at: string
+}
+
+export interface BadgeWithStatus {
+  definition: BadgeDefinition
+  isEarned: boolean
+  earnedAt?: string
+  progress?: BadgeProgress
+}

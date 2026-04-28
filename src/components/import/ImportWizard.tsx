@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef } from 'react'
 import {
   Upload, FileText, CheckCircle2, XCircle, AlertCircle,
-  Loader2, ChevronRight, RotateCcw, ArrowUpRight, ArrowDownRight,
+  Loader2, ChevronRight, RotateCcw, ArrowUpRight, ArrowDownRight, Trophy,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { supabase } from '../../lib/supabase'
@@ -9,7 +9,8 @@ import { parseTradeStationCSV, getFilledOrders, orderToDbInsert, CSVParseError }
 import { matchTrades, tradeToDbInsert } from '../../lib/trade-matcher'
 import { useAuth } from '../../contexts/AuthContext'
 import { useAccount } from '../../contexts/AccountContext'
-import type { MatchedTrade, ParsedOrder } from '../../types'
+import { useBadges } from '../../hooks/useBadges'
+import type { DbTrade, MatchedTrade, ParsedOrder } from '../../types'
 import { formatCurrency, formatDuration } from '../../lib/utils'
 import { format } from 'date-fns'
 
@@ -41,6 +42,7 @@ interface ImportWizardProps {
 export default function ImportWizard({ onImportComplete }: ImportWizardProps) {
   const { user } = useAuth()
   const { activeAccount } = useAccount()
+  const { checkAndAward } = useBadges(user?.id ?? null, activeAccount?.id ?? null)
   const [step, setStep] = useState<Step>('upload')
   const [preview, setPreview] = useState<PreviewState | null>(null)
   const [importResult, setImportResult] = useState<{ imported: number; skipped: number } | null>(null)
@@ -201,6 +203,28 @@ export default function ImportWizard({ onImportComplete }: ImportWizardProps) {
       setImportResult({ imported: selectedTrades.length, skipped: preview.dupeTrades.length })
       setStep('done')
       toast.success(`Imported ${selectedTrades.length} trade${selectedTrades.length !== 1 ? 's' : ''}!`)
+
+      // Check for newly earned badges against the full trade history
+      const { data: allTradesData } = await supabase
+        .from('trades')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('account_id', activeAccount!.id)
+        .order('exit_time', { ascending: true })
+      const newBadges = await checkAndAward((allTradesData ?? []) as DbTrade[])
+      for (const badge of newBadges) {
+        toast(badge.title, {
+          icon: '🏆',
+          duration: 5000,
+          style: {
+            background: '#1a1c2e',
+            color: '#dde1f0',
+            border: '1px solid #4a7cf4',
+            fontSize: '13px',
+          },
+        })
+      }
+
       onImportComplete?.()
     } catch (e) {
       toast.error((e as Error).message)

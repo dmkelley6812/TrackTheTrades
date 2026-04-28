@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import {
   TrendingUp, LayoutDashboard, List, Upload, LogOut,
-  ChevronRight, Flag, ChevronDown, Plus, Settings2,
+  ChevronRight, Flag, ChevronDown, Plus, Settings2, Trophy,
 } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { useAccount } from '../../contexts/AccountContext'
@@ -13,6 +13,7 @@ const NAV = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/trades', icon: List, label: 'Trades' },
   { to: '/goals', icon: Flag, label: 'Goals' },
+  { to: '/badges', icon: Trophy, label: 'Badges' },
   { to: '/import', icon: Upload, label: 'Import' },
 ]
 

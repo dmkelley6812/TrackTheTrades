@@ -56,7 +56,7 @@ export default function GoalsPage() {
   }
 
   // ── CRUD ────────────────────────────────────────────────────────────────────
-  async function handleCreate(data: Omit<DbGoal, 'id' | 'user_id' | 'created_at' | 'updated_at' | 'status'>) {
+  async function handleCreate(data: Omit<DbGoal, 'id' | 'user_id' | 'account_id' | 'created_at' | 'updated_at' | 'status'>) {
     const { data: inserted, error } = await supabase
       .from('goals')
       .insert({ ...data, user_id: user!.id, account_id: activeAccount!.id, status: 'active' })
