@@ -201,6 +201,27 @@ export interface ImportPreview {
   duplicateTrades: MatchedTrade[]
 }
 
+// ─── Account Types ────────────────────────────────────────────────────────────
+
+export type AccountType = 'paper' | 'live' | 'demo'
+export type ProductType = 'futures' | 'stocks' | 'crypto' | 'forex' | 'options' | 'mixed'
+
+export interface DbAccount {
+  id: string
+  user_id: string
+  name: string
+  account_type: AccountType
+  product_type: ProductType
+  broker: string
+  currency: string
+  starting_balance: number | null
+  color: string
+  is_default: boolean
+  description: string | null
+  created_at: string
+  updated_at: string
+}
+
 // ─── Goal Types ───────────────────────────────────────────────────────────────
 
 export type GoalType =
@@ -219,6 +240,7 @@ export type GoalStatus = 'active' | 'achieved' | 'archived'
 export interface DbGoal {
   id: string
   user_id: string
+  account_id: string | null
   title: string
   type: GoalType
   period: GoalPeriodType

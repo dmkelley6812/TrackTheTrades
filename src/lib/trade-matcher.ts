@@ -152,11 +152,13 @@ export function matchTrades(filledOrders: ParsedOrder[]): MatchedTrade[] {
 export function tradeToDbInsert(
   trade: MatchedTrade,
   userId: string,
-  importId: string
+  importId: string,
+  accountId: string
 ) {
   return {
     user_id: userId,
     import_id: importId,
+    account_id: accountId,
     symbol: trade.symbol,
     direction: trade.direction,
     entry_time: trade.entryTime.toISOString(),

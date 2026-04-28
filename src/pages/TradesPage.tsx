@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import toast from 'react-hot-toast'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
+import { useAccount } from '../contexts/AccountContext'
 import { getDateRange, computeStats, formatLocalDate } from '../lib/utils'
 import type { DbTrade, DateRange } from '../types'
 import DateFilter from '../components/dashboard/DateFilter'
@@ -10,12 +11,13 @@ import { formatCurrency, formatPercent } from '../lib/utils'
 
 export default function TradesPage() {
   const { user } = useAuth()
+  const { activeAccount } = useAccount()
   const [dateRange, setDateRange] = useState<DateRange>(getDateRange('this_month'))
   const [trades, setTrades] = useState<DbTrade[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    if (!user) return
+    if (!user || !activeAccount) return
     setLoading(true)
     const start = formatLocalDate(dateRange.start)
     const end = formatLocalDate(dateRange.end)
@@ -23,6 +25,7 @@ export default function TradesPage() {
       .from('trades')
       .select('*')
       .eq('user_id', user.id)
+      .eq('account_id', activeAccount.id)
       .gte('trade_date', start)
       .lte('trade_date', end)
       .order('exit_time', { ascending: false })
@@ -30,7 +33,7 @@ export default function TradesPage() {
         if (!error) setTrades(data ?? [])
         setLoading(false)
       })
-  }, [user, dateRange])
+  }, [user, activeAccount, dateRange])
 
   const handleDelete = useCallback(async (ids: string[]) => {
     // Collect the order IDs linked to the trades being deleted
@@ -57,6 +60,7 @@ export default function TradesPage() {
         .delete()
         .in('order_id', orderIds)
         .eq('user_id', user!.id)
+        .eq('account_id', activeAccount!.id)
     }
 
     setTrades(prev => prev.filter(t => !ids.includes(t.id)))

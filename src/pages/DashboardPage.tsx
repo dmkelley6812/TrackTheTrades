@@ -14,6 +14,7 @@ import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { getDateRange, computeStats, computeDailyPnl, computeCumulativePnl, computeWeeklyStats, formatLocalDate } from '../lib/utils'
 import { useAuth } from '../contexts/AuthContext'
+import { useAccount } from '../contexts/AccountContext'
 import type { DbTrade, DateRange } from '../types'
 import GoalsWidget from '../components/dashboard/GoalsWidget'
 import DateFilter from '../components/dashboard/DateFilter'
@@ -97,6 +98,7 @@ function SortableSection({
 
 export default function DashboardPage() {
   const { user } = useAuth()
+  const { activeAccount } = useAccount()
   const [dateRange, setDateRange] = useState<DateRange>(getDateRange('this_week'))
   const [trades, setTrades] = useState<DbTrade[]>([])
   const [allTrades, setAllTrades] = useState<DbTrade[]>([])
@@ -108,7 +110,7 @@ export default function DashboardPage() {
   const [activeId, setActiveId] = useState<SectionId | null>(null)
 
   useEffect(() => {
-    if (!user) return
+    if (!user || !activeAccount) return
     setLoading(true)
     const start = formatLocalDate(dateRange.start)
     const end = formatLocalDate(dateRange.end)
@@ -116,6 +118,7 @@ export default function DashboardPage() {
       .from('trades')
       .select('*')
       .eq('user_id', user.id)
+      .eq('account_id', activeAccount.id)
       .gte('trade_date', start)
       .lte('trade_date', end)
       .order('exit_time', { ascending: false })
@@ -123,14 +126,15 @@ export default function DashboardPage() {
         if (!error) setTrades(data ?? [])
         setLoading(false)
       })
-  }, [user, dateRange])
+  }, [user, activeAccount, dateRange])
 
   useEffect(() => {
-    if (!user) return
+    if (!user || !activeAccount) return
     supabase
       .from('trades')
       .select('*')
       .eq('user_id', user.id)
+      .eq('account_id', activeAccount.id)
       .order('exit_time', { ascending: false })
       .then(({ data, error }) => {
         if (!error) setAllTrades(data ?? [])
@@ -140,12 +144,13 @@ export default function DashboardPage() {
       .from('goals')
       .select('*')
       .eq('user_id', user.id)
+      .eq('account_id', activeAccount.id)
       .order('created_at', { ascending: false })
       .then(({ data, error }) => {
         if (!error) setGoals((data ?? []) as DbGoal[])
         setGoalsLoading(false)
       })
-  }, [user])
+  }, [user, activeAccount])
 
   const stats = computeStats(trades)
   const dailyPnl = computeDailyPnl(trades)

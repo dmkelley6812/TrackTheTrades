@@ -3,6 +3,7 @@ import { Flag, Plus, Trophy, Target, TrendingUp, CheckCircle } from 'lucide-reac
 import toast from 'react-hot-toast'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
+import { useAccount } from '../contexts/AccountContext'
 import type { DbGoal, DbTrade, GoalStatus } from '../types'
 import { computeGoalProgress } from '../lib/goals'
 import GoalCard from '../components/goals/GoalCard'
@@ -12,6 +13,7 @@ type FilterTab = 'all' | 'active' | 'achieved' | 'archived'
 
 export default function GoalsPage() {
   const { user } = useAuth()
+  const { activeAccount } = useAccount()
   const [goals, setGoals] = useState<DbGoal[]>([])
   const [allTrades, setAllTrades] = useState<DbTrade[]>([])
   const [loading, setLoading] = useState(true)
@@ -20,9 +22,9 @@ export default function GoalsPage() {
 
   // ── Data loading ────────────────────────────────────────────────────────────
   useEffect(() => {
-    if (!user) return
+    if (!user || !activeAccount) return
     void loadData()
-  }, [user])
+  }, [user, activeAccount])
 
   async function loadData() {
     setLoading(true)
@@ -32,11 +34,13 @@ export default function GoalsPage() {
           .from('goals')
           .select('*')
           .eq('user_id', user!.id)
+          .eq('account_id', activeAccount!.id)
           .order('created_at', { ascending: false }),
         supabase
           .from('trades')
           .select('*')
           .eq('user_id', user!.id)
+          .eq('account_id', activeAccount!.id)
           .order('trade_date', { ascending: true }),
       ])
       if (goalsRes.error) throw goalsRes.error
@@ -55,7 +59,7 @@ export default function GoalsPage() {
   async function handleCreate(data: Omit<DbGoal, 'id' | 'user_id' | 'created_at' | 'updated_at' | 'status'>) {
     const { data: inserted, error } = await supabase
       .from('goals')
-      .insert({ ...data, user_id: user!.id, status: 'active' })
+      .insert({ ...data, user_id: user!.id, account_id: activeAccount!.id, status: 'active' })
       .select()
       .single()
     if (error) throw error

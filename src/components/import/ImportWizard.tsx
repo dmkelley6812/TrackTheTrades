@@ -8,6 +8,7 @@ import { supabase } from '../../lib/supabase'
 import { parseTradeStationCSV, getFilledOrders, orderToDbInsert, CSVParseError } from '../../lib/csv-parser'
 import { matchTrades, tradeToDbInsert } from '../../lib/trade-matcher'
 import { useAuth } from '../../contexts/AuthContext'
+import { useAccount } from '../../contexts/AccountContext'
 import type { MatchedTrade, ParsedOrder } from '../../types'
 import { formatCurrency, formatDuration } from '../../lib/utils'
 import { format } from 'date-fns'
@@ -39,6 +40,7 @@ interface ImportWizardProps {
 
 export default function ImportWizard({ onImportComplete }: ImportWizardProps) {
   const { user } = useAuth()
+  const { activeAccount } = useAccount()
   const [step, setStep] = useState<Step>('upload')
   const [preview, setPreview] = useState<PreviewState | null>(null)
   const [importResult, setImportResult] = useState<{ imported: number; skipped: number } | null>(null)
@@ -83,6 +85,7 @@ export default function ImportWizard({ onImportComplete }: ImportWizardProps) {
         .from('orders')
         .select('order_id')
         .eq('user_id', user!.id)
+        .eq('account_id', activeAccount!.id)
         .in('order_id', orderIds)
       const existingOrderIds = new Set((existingOrders ?? []).map(o => o.order_id))
 
@@ -91,6 +94,7 @@ export default function ImportWizard({ onImportComplete }: ImportWizardProps) {
         .from('trades')
         .select('symbol, direction, entry_time, exit_time, entry_price, exit_price, qty')
         .eq('user_id', user!.id)
+        .eq('account_id', activeAccount!.id)
       const existingTradeFps = new Set(
         (existingDbTrades ?? []).map(t =>
           `${t.symbol}|${t.direction}|${new Date(t.entry_time).toISOString()}|${new Date(t.exit_time).toISOString()}|${t.entry_price}|${t.exit_price}|${t.qty}`
@@ -167,6 +171,7 @@ export default function ImportWizard({ onImportComplete }: ImportWizardProps) {
         .from('imports')
         .insert({
           user_id: user.id,
+          account_id: activeAccount!.id,
           file_name: preview.fileName,
           broker: 'TradeStation',
           order_count: preview.filledOrders.filter(o => ordersForSelectedTrades.has(o.orderId)).length,
@@ -182,14 +187,14 @@ export default function ImportWizard({ onImportComplete }: ImportWizardProps) {
       if (newOrders.length > 0) {
         const { error: ordErr } = await supabase
           .from('orders')
-          .insert(newOrders.map(o => orderToDbInsert(o, user.id, importId)))
+          .insert(newOrders.map(o => orderToDbInsert(o, user.id, importId, activeAccount!.id)))
         if (ordErr) throw ordErr
       }
 
       if (selectedTrades.length > 0) {
         const { error: tradeErr } = await supabase
           .from('trades')
-          .insert(selectedTrades.map(t => tradeToDbInsert(t, user.id, importId)))
+          .insert(selectedTrades.map(t => tradeToDbInsert(t, user.id, importId, activeAccount!.id)))
         if (tradeErr) throw tradeErr
       }
 

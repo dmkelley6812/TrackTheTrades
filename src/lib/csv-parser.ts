@@ -87,10 +87,11 @@ export function getFilledOrders(orders: ParsedOrder[]) {
   )
 }
 
-export function orderToDbInsert(order: ParsedOrder, userId: string, importId: string) {
+export function orderToDbInsert(order: ParsedOrder, userId: string, importId: string, accountId: string) {
   return {
     user_id: userId,
     import_id: importId,
+    account_id: accountId,
     order_id: order.orderId,
     symbol: order.symbol,
     side: order.side,

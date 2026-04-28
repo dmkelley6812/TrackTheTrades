@@ -2,6 +2,7 @@ import { lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { Toaster } from 'react-hot-toast'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
+import { AccountProvider } from './contexts/AccountContext'
 import AppLayout from './components/layout/AppLayout'
 import AuthPage from './pages/AuthPage'
 import StatusBanner from './components/layout/StatusBanner'
@@ -10,6 +11,7 @@ const DashboardPage = lazy(() => import('./pages/DashboardPage'))
 const TradesPage = lazy(() => import('./pages/TradesPage'))
 const ImportPage = lazy(() => import('./pages/ImportPage'))
 const GoalsPage = lazy(() => import('./pages/GoalsPage'))
+const AccountsPage = lazy(() => import('./pages/AccountsPage'))
 
 function PageLoader() {
   return (
@@ -59,6 +61,7 @@ function AppRoutes() {
         <Route path="trades" element={<Suspense fallback={<PageLoader />}><TradesPage /></Suspense>} />
         <Route path="import" element={<Suspense fallback={<PageLoader />}><ImportPage /></Suspense>} />
         <Route path="goals" element={<Suspense fallback={<PageLoader />}><GoalsPage /></Suspense>} />
+        <Route path="accounts" element={<Suspense fallback={<PageLoader />}><AccountsPage /></Suspense>} />
       </Route>
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>
@@ -69,21 +72,23 @@ export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <StatusBanner />
-        <AppRoutes />
-        <Toaster
-          position="top-right"
-          toastOptions={{
-            style: {
-              background: '#1a1c2e',
-              color: '#dde1f0',
-              border: '1px solid #2a2d4a',
-              fontSize: '13px',
-            },
-            success: { iconTheme: { primary: '#22d984', secondary: '#0d4a2a' } },
-            error: { iconTheme: { primary: '#f14b4b', secondary: '#5a1515' } },
-          }}
-        />
+        <AccountProvider>
+          <StatusBanner />
+          <AppRoutes />
+          <Toaster
+            position="top-right"
+            toastOptions={{
+              style: {
+                background: '#1a1c2e',
+                color: '#dde1f0',
+                border: '1px solid #2a2d4a',
+                fontSize: '13px',
+              },
+              success: { iconTheme: { primary: '#22d984', secondary: '#0d4a2a' } },
+              error: { iconTheme: { primary: '#f14b4b', secondary: '#5a1515' } },
+            }}
+          />
+        </AccountProvider>
       </AuthProvider>
     </BrowserRouter>
   )
