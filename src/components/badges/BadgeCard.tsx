@@ -118,6 +118,8 @@ export default function BadgeCard({ badgeStatus }: BadgeCardProps) {
             className="absolute inset-y-0 w-1/3 animate-shimmer"
             style={{
               background: `linear-gradient(105deg, transparent, rgba(${r.glowRgb}, 0.12), transparent)`,
+              animationIterationCount: 1,
+              animationFillMode: 'both',
             }}
           />
         </div>

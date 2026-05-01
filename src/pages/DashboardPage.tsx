@@ -15,20 +15,19 @@ import { supabase } from '../lib/supabase'
 import { getDateRange, computeStats, computeDailyPnl, computeCumulativePnl, computeWeeklyStats, formatLocalDate } from '../lib/utils'
 import { useAuth } from '../contexts/AuthContext'
 import { useAccount } from '../contexts/AccountContext'
-import { useBadges } from '../hooks/useBadges'
 import type { DbTrade, DateRange } from '../types'
 import GoalsWidget from '../components/dashboard/GoalsWidget'
-import BadgesWidget from '../components/dashboard/BadgesWidget'
 import DateFilter from '../components/dashboard/DateFilter'
 import StatsCards from '../components/dashboard/StatsCards'
 import { EquityCurve, DailyBars } from '../components/dashboard/PnlChart'
 import RecentTrades from '../components/dashboard/RecentTrades'
 import WeeklyStatsTable from '../components/dashboard/WeeklyStats'
 import TradeCalendar from '../components/calendar/TradeCalendar'
+import ForecastWidget from '../components/dashboard/ForecastWidget'
 
 // ─── Section definitions ──────────────────────────────────────────────────────
 
-type SectionId = 'stats' | 'charts' | 'recent' | 'calendar' | 'weekly' | 'goals' | 'badges'
+type SectionId = 'stats' | 'charts' | 'recent' | 'calendar' | 'weekly' | 'goals' | 'forecast'
 
 const SECTION_META: Record<SectionId, { label: string; subtitle: string }> = {
   stats:    { label: 'Performance Stats',  subtitle: 'Key metrics for the selected period' },
@@ -37,10 +36,10 @@ const SECTION_META: Record<SectionId, { label: string; subtitle: string }> = {
   calendar: { label: 'Calendar',           subtitle: 'Click a day to see its trades' },
   weekly:   { label: 'Weekly Breakdown',   subtitle: 'Last 13 weeks' },
   goals:    { label: 'Goals',              subtitle: 'Progress toward your trading targets' },
-  badges:   { label: 'Badges',             subtitle: 'Achievements earned from your trading activity' },
+  forecast: { label: 'Forecast',           subtitle: 'Projected period-end P&L based on your avg daily' },
 }
 
-const DEFAULT_ORDER: SectionId[] = ['goals', 'badges', 'stats', 'charts', 'weekly', 'recent', 'calendar']
+const DEFAULT_ORDER: SectionId[] = ['goals', 'forecast', 'stats', 'charts', 'weekly', 'recent', 'calendar']
 const STORAGE_KEY = 'ttt_dashboard_order'
 
 function loadOrder(): SectionId[] {
@@ -102,7 +101,6 @@ function SortableSection({
 export default function DashboardPage() {
   const { user } = useAuth()
   const { activeAccount } = useAccount()
-  const { earnedBadges, loading: badgesLoading } = useBadges(user?.id ?? null, activeAccount?.id ?? null)
   const [dateRange, setDateRange] = useState<DateRange>(getDateRange('this_week'))
   const [trades, setTrades] = useState<DbTrade[]>([])
   const [allTrades, setAllTrades] = useState<DbTrade[]>([])
@@ -210,8 +208,8 @@ export default function DashboardPage() {
         return <WeeklyStatsTable data={weeklyStats} loading={allLoading} />
       case 'goals':
         return <GoalsWidget goals={goals} allTrades={allTrades} loading={goalsLoading || allLoading} />
-      case 'badges':
-        return <BadgesWidget earnedBadges={earnedBadges} loading={badgesLoading} />
+      case 'forecast':
+        return <ForecastWidget allTrades={allTrades} loading={allLoading} />
     }
   }
 

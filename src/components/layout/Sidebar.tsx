@@ -6,8 +6,27 @@ import {
 } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { useAccount } from '../../contexts/AccountContext'
-import type { DbAccount } from '../../types'
+import { useBadges } from '../../hooks/useBadges'
+import { BADGE_DEFINITIONS } from '../../lib/badges'
+import type { DbAccount, DbEarnedBadge, BadgeRarity } from '../../types'
 import toast from 'react-hot-toast'
+
+const RARITY_ORDER: BadgeRarity[] = ['legendary', 'epic', 'rare', 'common']
+
+const RARITY_PILL: Record<BadgeRarity, string> = {
+  legendary: 'bg-amber-400/20 text-amber-400',
+  epic:      'bg-purple-400/20 text-purple-400',
+  rare:      'bg-accent/20 text-accent',
+  common:    'bg-hover text-text-muted',
+}
+
+function highestRarity(earned: DbEarnedBadge[]): BadgeRarity {
+  for (const rarity of RARITY_ORDER) {
+    if (earned.some(eb => BADGE_DEFINITIONS.find(d => d.id === eb.badge_id)?.rarity === rarity))
+      return rarity
+  }
+  return 'common'
+}
 
 const NAV = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
@@ -36,6 +55,7 @@ function AccountDot({ color }: { color: string }) {
 export default function Sidebar() {
   const { user, signOut } = useAuth()
   const { accounts, activeAccount, setActiveAccount, loading } = useAccount()
+  const { earnedBadges } = useBadges(user?.id ?? null, activeAccount?.id ?? null)
   const navigate = useNavigate()
   const [open, setOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
@@ -172,6 +192,11 @@ export default function Sidebar() {
               <>
                 <Icon className={`w-4 h-4 flex-shrink-0 ${isActive ? 'text-accent' : 'text-text-dim group-hover:text-text-muted'}`} />
                 <span className="flex-1">{label}</span>
+                {label === 'Badges' && earnedBadges.length > 0 && (
+                  <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full tabular-nums ${RARITY_PILL[highestRarity(earnedBadges)]}`}>
+                    {earnedBadges.length}
+                  </span>
+                )}
                 {isActive && <ChevronRight className="w-3 h-3 text-accent/60" />}
               </>
             )}

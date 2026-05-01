@@ -3,15 +3,30 @@ import { computeDailyPnl, computeStats, computeWeeklyStats } from './utils'
 
 // ─── Private helpers ──────────────────────────────────────────────────────────
 
-function longestProfitableDayStreak(trades: DbTrade[]): number {
-  const daily = computeDailyPnl(trades)
+// Current ongoing win streak from the most recent trade backwards
+function currentWinStreak(trades: DbTrade[]): number {
+  if (trades.length === 0) return 0
+  const sorted = [...trades].sort(
+    (a, b) => new Date(a.exit_time).getTime() - new Date(b.exit_time).getTime()
+  )
   let streak = 0
-  let max = 0
-  for (const d of daily) {
-    if (d.netPnl > 0) { streak++; max = Math.max(max, streak) }
-    else { streak = 0 }
+  for (let i = sorted.length - 1; i >= 0; i--) {
+    if (sorted[i].net_pnl > 0) streak++
+    else break
   }
-  return max
+  return streak
+}
+
+// Current ongoing profitable day streak from the most recent trading day backwards
+function currentProfitableDayStreak(trades: DbTrade[]): number {
+  const daily = computeDailyPnl(trades) // already sorted by date ascending
+  if (daily.length === 0) return 0
+  let streak = 0
+  for (let i = daily.length - 1; i >= 0; i--) {
+    if (daily[i].netPnl > 0) streak++
+    else break
+  }
+  return streak
 }
 
 function distinctTradingDays(trades: DbTrade[]): number {
@@ -162,8 +177,8 @@ export const BADGE_DEFINITIONS: BadgeDefinition[] = [
     category: 'performance',
     rarity: 'common',
     icon: 'Flame',
-    check: (trades) => computeStats(trades).largestWinStreak >= 3,
-    progress: (trades) => ({ current: Math.min(computeStats(trades).largestWinStreak, 3), target: 3 }),
+    check: (trades) => currentWinStreak(trades) >= 3,
+    progress: (trades) => ({ current: Math.min(currentWinStreak(trades), 3), target: 3 }),
   },
   {
     id: 'win_streak_5',
@@ -172,8 +187,8 @@ export const BADGE_DEFINITIONS: BadgeDefinition[] = [
     category: 'performance',
     rarity: 'rare',
     icon: 'Flame',
-    check: (trades) => computeStats(trades).largestWinStreak >= 5,
-    progress: (trades) => ({ current: Math.min(computeStats(trades).largestWinStreak, 5), target: 5 }),
+    check: (trades) => currentWinStreak(trades) >= 5,
+    progress: (trades) => ({ current: Math.min(currentWinStreak(trades), 5), target: 5 }),
   },
   {
     id: 'win_streak_10',
@@ -182,8 +197,8 @@ export const BADGE_DEFINITIONS: BadgeDefinition[] = [
     category: 'performance',
     rarity: 'epic',
     icon: 'Sparkles',
-    check: (trades) => computeStats(trades).largestWinStreak >= 10,
-    progress: (trades) => ({ current: Math.min(computeStats(trades).largestWinStreak, 10), target: 10 }),
+    check: (trades) => currentWinStreak(trades) >= 10,
+    progress: (trades) => ({ current: Math.min(currentWinStreak(trades), 10), target: 10 }),
   },
   {
     id: 'win_rate_60',
@@ -270,8 +285,8 @@ export const BADGE_DEFINITIONS: BadgeDefinition[] = [
     category: 'mastery',
     rarity: 'rare',
     icon: 'Award',
-    check: (trades) => longestProfitableDayStreak(trades) >= 5,
-    progress: (trades) => ({ current: Math.min(longestProfitableDayStreak(trades), 5), target: 5 }),
+    check: (trades) => currentProfitableDayStreak(trades) >= 5,
+    progress: (trades) => ({ current: Math.min(currentProfitableDayStreak(trades), 5), target: 5 }),
   },
   {
     id: 'profitable_streak_10',
@@ -280,8 +295,8 @@ export const BADGE_DEFINITIONS: BadgeDefinition[] = [
     category: 'mastery',
     rarity: 'epic',
     icon: 'Trophy',
-    check: (trades) => longestProfitableDayStreak(trades) >= 10,
-    progress: (trades) => ({ current: Math.min(longestProfitableDayStreak(trades), 10), target: 10 }),
+    check: (trades) => currentProfitableDayStreak(trades) >= 10,
+    progress: (trades) => ({ current: Math.min(currentProfitableDayStreak(trades), 10), target: 10 }),
   },
   {
     id: 'profitable_streak_20',
@@ -290,8 +305,8 @@ export const BADGE_DEFINITIONS: BadgeDefinition[] = [
     category: 'mastery',
     rarity: 'epic',
     icon: 'Swords',
-    check: (trades) => longestProfitableDayStreak(trades) >= 20,
-    progress: (trades) => ({ current: Math.min(longestProfitableDayStreak(trades), 20), target: 20 }),
+    check: (trades) => currentProfitableDayStreak(trades) >= 20,
+    progress: (trades) => ({ current: Math.min(currentProfitableDayStreak(trades), 20), target: 20 }),
   },
   {
     id: 'profitable_streak_30',
@@ -300,8 +315,8 @@ export const BADGE_DEFINITIONS: BadgeDefinition[] = [
     category: 'mastery',
     rarity: 'legendary',
     icon: 'Crown',
-    check: (trades) => longestProfitableDayStreak(trades) >= 30,
-    progress: (trades) => ({ current: Math.min(longestProfitableDayStreak(trades), 30), target: 30 }),
+    check: (trades) => currentProfitableDayStreak(trades) >= 30,
+    progress: (trades) => ({ current: Math.min(currentProfitableDayStreak(trades), 30), target: 30 }),
   },
   {
     id: 'profit_1k',
@@ -452,8 +467,8 @@ export const BADGE_DEFINITIONS: BadgeDefinition[] = [
     category: 'performance',
     rarity: 'epic',
     icon: 'Zap',
-    check: (trades) => computeStats(trades).largestWinStreak >= 15,
-    progress: (trades) => ({ current: Math.min(computeStats(trades).largestWinStreak, 15), target: 15 }),
+    check: (trades) => currentWinStreak(trades) >= 15,
+    progress: (trades) => ({ current: Math.min(currentWinStreak(trades), 15), target: 15 }),
   },
   {
     id: 'win_rate_70',
@@ -591,6 +606,13 @@ export const BADGE_DEFINITIONS: BadgeDefinition[] = [
 
 // ─── Engine ───────────────────────────────────────────────────────────────────
 
+// Streak badges are computed live from current trades on every render so they
+// reset the moment a streak is broken, rather than staying earned via DB record.
+const STREAK_BADGE_IDS = new Set([
+  'win_streak_3', 'win_streak_5', 'win_streak_10', 'win_streak_15',
+  'profitable_streak_5', 'profitable_streak_10', 'profitable_streak_20', 'profitable_streak_30',
+])
+
 export function computeBadgeStatuses(
   trades: DbTrade[],
   earnedBadges: DbEarnedBadge[]
@@ -599,12 +621,14 @@ export function computeBadgeStatuses(
 
   return BADGE_DEFINITIONS.map(def => {
     const earnedAt = earnedMap.get(def.id)
-    const isEarned = earnedAt != null
+    // Streak badges bypass DB and reflect current trade state so breaking a
+    // streak immediately removes the badge without needing a DB delete.
+    const isEarned = STREAK_BADGE_IDS.has(def.id) ? def.check(trades) : earnedAt != null
 
     return {
       definition: def,
       isEarned,
-      earnedAt,
+      earnedAt: isEarned ? earnedAt : undefined,
       progress: !isEarned && def.progress ? def.progress(trades) : undefined,
     }
   })
