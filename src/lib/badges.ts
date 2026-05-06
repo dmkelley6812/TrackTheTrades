@@ -71,6 +71,24 @@ function hasFullTradingWeek(trades: DbTrade[]): boolean {
   return false
 }
 
+function maxMonthlyPnl(trades: DbTrade[]): number {
+  const byMonth = new Map<string, number>()
+  for (const t of trades) {
+    const month = t.trade_date.slice(0, 7)
+    byMonth.set(month, (byMonth.get(month) ?? 0) + t.net_pnl)
+  }
+  return byMonth.size === 0 ? 0 : Math.max(...byMonth.values())
+}
+
+function maxYearlyPnl(trades: DbTrade[]): number {
+  const byYear = new Map<string, number>()
+  for (const t of trades) {
+    const year = t.trade_date.slice(0, 4)
+    byYear.set(year, (byYear.get(year) ?? 0) + t.net_pnl)
+  }
+  return byYear.size === 0 ? 0 : Math.max(...byYear.values())
+}
+
 // Last N trades win rate
 function recentWinRate(trades: DbTrade[], n: number): number {
   if (trades.length < n) return 0
@@ -601,6 +619,203 @@ export const BADGE_DEFINITIONS: BadgeDefinition[] = [
     icon: 'CalendarHeart',
     check: (trades) => distinctTradingDays(trades) >= 100,
     progress: (trades) => ({ current: Math.min(distinctTradingDays(trades), 100), target: 100 }),
+  },
+
+  // ── Elite Daily ───────────────────────────────────────────────────────────────
+  {
+    id: 'big_day_10k',
+    title: 'Big League Day',
+    description: 'Post a single-day net P&L of $10,000 or more.',
+    category: 'performance',
+    rarity: 'epic',
+    icon: 'Rocket',
+    check: (trades) => computeDailyPnl(trades).some(d => d.netPnl >= 10000),
+    progress: (trades) => ({
+      current: Math.round(Math.max(0, ...computeDailyPnl(trades).map(d => d.netPnl))),
+      target: 10000,
+    }),
+  },
+  {
+    id: 'big_day_25k',
+    title: 'Twenty-Five Large',
+    description: 'Post a single-day net P&L of $25,000 or more.',
+    category: 'performance',
+    rarity: 'legendary',
+    icon: 'Rocket',
+    check: (trades) => computeDailyPnl(trades).some(d => d.netPnl >= 25000),
+    progress: (trades) => ({
+      current: Math.round(Math.max(0, ...computeDailyPnl(trades).map(d => d.netPnl))),
+      target: 25000,
+    }),
+  },
+  {
+    id: 'big_day_50k',
+    title: 'Fifty K Day',
+    description: 'Post a single-day net P&L of $50,000 or more.',
+    category: 'performance',
+    rarity: 'legendary',
+    icon: 'Flame',
+    check: (trades) => computeDailyPnl(trades).some(d => d.netPnl >= 50000),
+    progress: (trades) => ({
+      current: Math.round(Math.max(0, ...computeDailyPnl(trades).map(d => d.netPnl))),
+      target: 50000,
+    }),
+  },
+
+  // ── Elite Weekly ──────────────────────────────────────────────────────────────
+  {
+    id: 'big_week_10k',
+    title: 'Ten K Week',
+    description: 'Post a single-week net P&L of $10,000 or more.',
+    category: 'performance',
+    rarity: 'epic',
+    icon: 'BarChart2',
+    check: (trades) => computeWeeklyStats(trades, 52).some(w => w.netPnl >= 10000),
+    progress: (trades) => ({
+      current: Math.round(Math.max(0, ...computeWeeklyStats(trades, 52).map(w => w.netPnl))),
+      target: 10000,
+    }),
+  },
+  {
+    id: 'big_week_25k',
+    title: 'Twenty-Five Large Week',
+    description: 'Post a single-week net P&L of $25,000 or more.',
+    category: 'performance',
+    rarity: 'legendary',
+    icon: 'BarChart2',
+    check: (trades) => computeWeeklyStats(trades, 52).some(w => w.netPnl >= 25000),
+    progress: (trades) => ({
+      current: Math.round(Math.max(0, ...computeWeeklyStats(trades, 52).map(w => w.netPnl))),
+      target: 25000,
+    }),
+  },
+  {
+    id: 'big_week_50k',
+    title: 'Fifty K Week',
+    description: 'Post a single-week net P&L of $50,000 or more.',
+    category: 'performance',
+    rarity: 'legendary',
+    icon: 'TrendingUp',
+    check: (trades) => computeWeeklyStats(trades, 52).some(w => w.netPnl >= 50000),
+    progress: (trades) => ({
+      current: Math.round(Math.max(0, ...computeWeeklyStats(trades, 52).map(w => w.netPnl))),
+      target: 50000,
+    }),
+  },
+  {
+    id: 'big_week_100k',
+    title: 'Six Figure Week',
+    description: 'Post a single-week net P&L of $100,000 or more.',
+    category: 'performance',
+    rarity: 'legendary',
+    icon: 'Crown',
+    check: (trades) => computeWeeklyStats(trades, 52).some(w => w.netPnl >= 100000),
+    progress: (trades) => ({
+      current: Math.round(Math.max(0, ...computeWeeklyStats(trades, 52).map(w => w.netPnl))),
+      target: 100000,
+    }),
+  },
+
+  // ── Elite Monthly ─────────────────────────────────────────────────────────────
+  {
+    id: 'big_month_50k',
+    title: 'Monster Month',
+    description: 'Post a single-month net P&L of $50,000 or more.',
+    category: 'mastery',
+    rarity: 'epic',
+    icon: 'Award',
+    progressLabel: 'Best month net P&L',
+    check: (trades) => maxMonthlyPnl(trades) >= 50000,
+    progress: (trades) => ({
+      current: Math.round(Math.max(0, maxMonthlyPnl(trades))),
+      target: 50000,
+    }),
+  },
+  {
+    id: 'big_month_100k',
+    title: 'Six Figure Month',
+    description: 'Post a single-month net P&L of $100,000 or more.',
+    category: 'mastery',
+    rarity: 'legendary',
+    icon: 'Trophy',
+    progressLabel: 'Best month net P&L',
+    check: (trades) => maxMonthlyPnl(trades) >= 100000,
+    progress: (trades) => ({
+      current: Math.round(Math.max(0, maxMonthlyPnl(trades))),
+      target: 100000,
+    }),
+  },
+  {
+    id: 'big_month_250k',
+    title: 'Quarter Mil Month',
+    description: 'Post a single-month net P&L of $250,000 or more.',
+    category: 'mastery',
+    rarity: 'legendary',
+    icon: 'Gem',
+    progressLabel: 'Best month net P&L',
+    check: (trades) => maxMonthlyPnl(trades) >= 250000,
+    progress: (trades) => ({
+      current: Math.round(Math.max(0, maxMonthlyPnl(trades))),
+      target: 250000,
+    }),
+  },
+  {
+    id: 'big_month_500k',
+    title: 'Half Mil Month',
+    description: 'Post a single-month net P&L of $500,000 or more.',
+    category: 'mastery',
+    rarity: 'legendary',
+    icon: 'Star',
+    progressLabel: 'Best month net P&L',
+    check: (trades) => maxMonthlyPnl(trades) >= 500000,
+    progress: (trades) => ({
+      current: Math.round(Math.max(0, maxMonthlyPnl(trades))),
+      target: 500000,
+    }),
+  },
+
+  // ── Elite Yearly ──────────────────────────────────────────────────────────────
+  {
+    id: 'big_year_500k',
+    title: 'Half Mil Year',
+    description: 'Post a single-year net P&L of $500,000 or more.',
+    category: 'mastery',
+    rarity: 'legendary',
+    icon: 'Landmark',
+    progressLabel: 'Best year net P&L',
+    check: (trades) => maxYearlyPnl(trades) >= 500000,
+    progress: (trades) => ({
+      current: Math.round(Math.max(0, maxYearlyPnl(trades))),
+      target: 500000,
+    }),
+  },
+  {
+    id: 'big_year_1m',
+    title: 'Million Dollar Year',
+    description: 'Post a single-year net P&L of $1,000,000 or more.',
+    category: 'mastery',
+    rarity: 'legendary',
+    icon: 'Infinity',
+    progressLabel: 'Best year net P&L',
+    check: (trades) => maxYearlyPnl(trades) >= 1000000,
+    progress: (trades) => ({
+      current: Math.round(Math.max(0, maxYearlyPnl(trades))),
+      target: 1000000,
+    }),
+  },
+  {
+    id: 'big_year_2m',
+    title: 'The Whale',
+    description: 'Post a single-year net P&L of $2,000,000 or more.',
+    category: 'mastery',
+    rarity: 'legendary',
+    icon: 'Building2',
+    progressLabel: 'Best year net P&L',
+    check: (trades) => maxYearlyPnl(trades) >= 2000000,
+    progress: (trades) => ({
+      current: Math.round(Math.max(0, maxYearlyPnl(trades))),
+      target: 2000000,
+    }),
   },
 ]
 
