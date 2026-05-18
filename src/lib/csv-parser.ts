@@ -9,11 +9,19 @@ export class CSVParseError extends Error {
   }
 }
 
-const REQUIRED_COLUMNS = [
-  'Symbol', 'Side', 'Type', 'Qty', 'Filled Qty',
-  'Avg Fill Price', 'Status', 'Open Time', 'Close Time',
-  'Commission Fee', 'Order ID',
+// Canonical lowercase keys we look up after normalizing headers
+const REQUIRED_COLUMNS_LOWER = [
+  'symbol', 'side', 'type', 'avg fill price', 'status',
+  'open time', 'close time', 'commission fee', 'order id',
 ]
+// qty/quantity handled separately since the header name changed between formats
+const QTY_COLUMNS_LOWER = [['qty', 'quantity'], ['filled qty', 'filled quantity']]
+
+function normalizeHeaders(row: Record<string, string>): Record<string, string> {
+  const out: Record<string, string> = {}
+  for (const [k, v] of Object.entries(row)) out[k.toLowerCase()] = v
+  return out
+}
 
 function parseDate(str: string): Date {
   // Normalize MM/DD/YYYY HH:mm:ss → YYYY-MM-DD HH:mm:ss
@@ -48,32 +56,38 @@ export function parseTradeStationCSV(fileContent: string): ParsedOrder[] {
   const rows = result.data
   if (rows.length === 0) throw new CSVParseError('CSV file is empty')
 
-  // Validate columns
-  const headers = Object.keys(rows[0])
-  for (const col of REQUIRED_COLUMNS) {
-    if (!headers.includes(col)) {
+  // Validate columns against lowercase-normalized headers (handles both old Title Case and new Sentence case)
+  const headersLower = Object.keys(rows[0]).map(h => h.toLowerCase())
+  for (const col of REQUIRED_COLUMNS_LOWER) {
+    if (!headersLower.includes(col)) {
       throw new CSVParseError(`Missing required column: "${col}". Make sure you're uploading a TradeStation Order History export.`)
+    }
+  }
+  for (const [a, b] of QTY_COLUMNS_LOWER) {
+    if (!headersLower.includes(a) && !headersLower.includes(b)) {
+      throw new CSVParseError(`Missing required column: "${a}" or "${b}". Make sure you're uploading a TradeStation Order History export.`)
     }
   }
 
   return rows.map((row, i): ParsedOrder => {
     try {
+      const r = normalizeHeaders(row)
       return {
-        orderId: row['Order ID'],
-        symbol: row.Symbol,
-        side: row.Side as 'Buy' | 'Sell',
-        orderType: row.Type,
-        qty: parseInt(row.Qty) || 0,
-        filledQty: parseInt(row['Filled Qty']) || 0,
-        limitPrice: parseNum(row['Limit Price']),
-        stopPrice: parseNum(row['Stop Price']),
-        avgFillPrice: parseNum(row['Avg Fill Price']),
-        status: row.Status,
-        openTime: parseDate(row['Open Time']),
-        closeTime: parseDate(row['Close Time']),
-        duration: row.Duration,
-        commissionFee: parseNum(row['Commission Fee']) ?? 0,
-        expirationDate: row['Expiration Date'] || '',
+        orderId: r['order id'],
+        symbol: r['symbol'],
+        side: r['side'] as 'Buy' | 'Sell',
+        orderType: r['type'],
+        qty: parseInt(r['quantity'] ?? r['qty']) || 0,
+        filledQty: parseInt(r['filled quantity'] ?? r['filled qty']) || 0,
+        limitPrice: parseNum(r['limit price']),
+        stopPrice: parseNum(r['stop price']),
+        avgFillPrice: parseNum(r['avg fill price']),
+        status: r['status'],
+        openTime: parseDate(r['open time']),
+        closeTime: parseDate(r['close time']),
+        duration: r['duration'],
+        commissionFee: parseNum(r['commission fee']) ?? 0,
+        expirationDate: r['expiration date'] || '',
       }
     } catch (e) {
       throw new CSVParseError(`Row ${i + 2}: ${(e as Error).message}`)

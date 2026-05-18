@@ -1,22 +1,7 @@
 // ─── CSV / Import Types ───────────────────────────────────────────────────────
 
-export interface CSVRow {
-  Symbol: string
-  Side: string
-  Type: string
-  Qty: string
-  'Filled Qty': string
-  'Limit Price': string
-  'Stop Price': string
-  'Avg Fill Price': string
-  Status: string
-  'Open Time': string
-  'Close Time': string
-  Duration: string
-  'Commission Fee': string
-  'Expiration Date': string
-  'Order ID': string
-}
+// Flexible row type — column names differ between old (Title Case) and new (Sentence case) TradeStation exports
+export type CSVRow = Record<string, string>
 
 export interface ParsedOrder {
   orderId: string
