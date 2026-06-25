@@ -48,7 +48,9 @@ src/
     ├── trades/                # TradesTable (sortable/filterable)
     ├── import/                # ImportWizard (upload → preview → confirm)
     ├── calendar/              # TradeCalendar (heatmap)
-    └── goals/                 # GoalCard, GoalForm
+    ├── goals/                 # GoalCard, GoalForm
+    └── tax/                   # TaxDashboardCards, TaxBreakdownTable,
+                               #   TaxCharts, TaxProfileForm
 ```
 
 ## Routing
@@ -62,6 +64,7 @@ All protected routes are children of AppLayout. Unauthenticated users redirect t
 /import      → ImportPage
 /goals       → GoalsPage
 /accounts    → AccountsPage
+/tax         → TaxPage
 /auth        → AuthPage (public)
 *            → redirect /dashboard
 ```
@@ -265,12 +268,31 @@ VITE_SUPABASE_URL=
 VITE_SUPABASE_ANON_KEY=
 ```
 
+## Tax Reserve Tracker
+
+**Route:** `/tax` — Tax Reserve Tracker page
+
+**Services:**
+- `src/lib/tax-brackets.ts` — Federal bracket tables for 2024+, LTCG rates, standard deductions, NIIT thresholds. Data-driven; add new years by extending the `FEDERAL_ORDINARY_BRACKETS` / `FEDERAL_LTCG_BRACKETS` objects.
+- `src/lib/state-tax.ts` — `StateTaxProvider` covering all 50 states + DC (none/flat/progressive). Add states by appending to `STATE_TAX_TABLE`.
+- `src/lib/tax-engine.ts` — `computeTaxEstimate(input)` orchestrates ordinary tax, LTCG (stacked), NIIT (3.8%), state tax, reserve mode multiplier, and reserve status. `computeAssetClassIncomeFromTrades()` auto-groups YTD trades by account product_type.
+
+**Asset class tax treatment:**
+- Futures → Section 1256: 60% LTCG / 40% ordinary income
+- Stocks / Options / Crypto → short-term (ordinary income rates)
+- Forex → ordinary income
+
+**Reserve modes:** Minimum 90%, Recommended 100%, Conservative 115% of remaining liability.
+
+**DB table:** `tax_profiles` (one row per user, not per account — tax filing is user-level).
+
 ## Migrations
 
 Run in order in Supabase SQL editor:
 
 1. `supabase/migrations/001_initial.sql` – base schema (imports, orders, trades, goals)
 2. `supabase/migrations/002_accounts.sql` – accounts table + account_id FK columns + missing UPDATE policies
+3. `supabase/migrations/004_tax_profiles.sql` – tax_profiles table with RLS
 
 When adding new migrations, prefix with `003_`, `004_`, etc. Always add `IF NOT EXISTS` guards and `IF NOT EXISTS` index creation. Always add both the UPDATE policy (missing from 001) and the account_id FK when creating new tables.
 

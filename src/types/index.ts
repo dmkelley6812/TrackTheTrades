@@ -89,6 +89,7 @@ export interface DbTrade {
   id: string
   user_id: string
   import_id: string | null
+  account_id: string | null
   symbol: string
   direction: 'Long' | 'Short'
   entry_time: string
@@ -291,4 +292,112 @@ export interface BadgeWithStatus {
   isEarned: boolean
   earnedAt?: string
   progress?: BadgeProgress
+}
+
+// ─── Tax Reserve Types ────────────────────────────────────────────────────────
+
+export type FilingStatus =
+  | 'single'
+  | 'married_jointly'
+  | 'married_separately'
+  | 'head_of_household'
+
+export type TaxReserveMode = 'minimum' | 'recommended' | 'conservative'
+
+export type TaxDeductionMethod = 'standard' | 'itemized'
+
+export type TaxReserveStatus = 'behind' | 'on_target' | 'ahead'
+
+export interface DbTaxProfile {
+  id: string
+  user_id: string
+  filing_status: FilingStatus
+  state: string
+  w2_income: number
+  other_ordinary_income: number
+  deduction_method: TaxDeductionMethod
+  itemized_deduction_amount: number
+  reserve_mode: TaxReserveMode
+  tax_payments_made: number
+  tax_savings_balance: number
+  qualifying_children: number
+  other_dependents: number
+  futures_profit_override: number | null
+  stocks_profit_override: number | null
+  options_profit_override: number | null
+  crypto_profit_override: number | null
+  forex_profit_override: number | null
+  created_at: string
+  updated_at: string
+}
+
+export interface TaxBracket {
+  min: number
+  max: number | null  // null = no upper limit
+  rate: number        // decimal, e.g. 0.22 for 22%
+}
+
+export interface AssetClassIncome {
+  futures: number
+  stocks: number
+  options: number
+  crypto: number
+  forex: number
+}
+
+export interface TaxIncomeBreakdown {
+  w2Income: number
+  otherOrdinaryIncome: number
+  tradingOrdinaryIncome: number   // futures 40% + stocks + options + crypto + forex
+  tradingLTCG: number             // futures 60%
+  totalPreDeductionIncome: number
+  deduction: number
+  taxableOrdinaryIncome: number
+  taxableLTCG: number
+  adjustedGrossIncome: number
+}
+
+export interface TaxCalculationResult {
+  income: TaxIncomeBreakdown
+  assetIncome: AssetClassIncome
+  federalOrdinaryTax: number
+  federalLTCGTax: number
+  niitTax: number                 // Net Investment Income Tax (3.8%)
+  totalFederalTaxBeforeCredits: number
+  // Tax credits (reduce liability dollar-for-dollar)
+  childTaxCreditGross: number     // before phase-out
+  childTaxCreditPhaseOut: number  // reduction due to AGI phase-out
+  childTaxCreditNet: number       // actually applied
+  totalCredits: number
+  totalFederalTax: number         // after credits
+  stateTax: number
+  stateName: string
+  stateEffectiveRate: number
+  totalLiability: number          // federal (after credits) + state
+  reserveMultiplier: number
+  requiredReserveBalance: number
+  actualSavingsBalance: number
+  taxPaymentsMade: number
+  netLiabilityAfterPayments: number
+  reserveStatus: TaxReserveStatus
+  reserveDifference: number       // positive = ahead, negative = behind
+  effectiveTaxRate: number        // totalLiability / AGI
+  marginalFederalRate: number
+  taxYear: number
+}
+
+export interface TaxEngineInput {
+  taxYear: number
+  filingStatus: FilingStatus
+  state: string
+  w2Income: number
+  otherOrdinaryIncome: number
+  deductionMethod: TaxDeductionMethod
+  itemizedDeductionAmount: number
+  reserveMode: TaxReserveMode
+  taxPaymentsMade: number
+  taxSavingsBalance: number
+  qualifyingChildren: number
+  otherDependents: number
+  assetIncome: AssetClassIncome
 }

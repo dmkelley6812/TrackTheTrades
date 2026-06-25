@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import {
   TrendingUp, LayoutDashboard, List, Upload, LogOut,
-  ChevronRight, Flag, ChevronDown, Plus, Settings2, Trophy,
+  ChevronRight, Flag, ChevronDown, Plus, Settings2, Trophy, Receipt,
 } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { useAccount } from '../../contexts/AccountContext'
@@ -30,10 +30,11 @@ function highestRarity(earned: DbEarnedBadge[]): BadgeRarity {
 
 const NAV = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-  { to: '/trades', icon: List, label: 'Trades' },
-  { to: '/goals', icon: Flag, label: 'Goals' },
-  { to: '/badges', icon: Trophy, label: 'Badges' },
-  { to: '/import', icon: Upload, label: 'Import' },
+  { to: '/trades',    icon: List,            label: 'Trades' },
+  { to: '/goals',     icon: Flag,            label: 'Goals' },
+  { to: '/badges',    icon: Trophy,          label: 'Badges' },
+  { to: '/tax',       icon: Receipt,         label: 'Tax Reserve' },
+  { to: '/import',    icon: Upload,          label: 'Import' },
 ]
 
 const ACCOUNT_TYPE_LABEL: Record<string, string> = {
