@@ -153,10 +153,10 @@ export default function TaxBreakdownTable({ result }: Props) {
             />
 
             {/* Rates */}
-            <Row label="Effective Tax Rate" value={formatPercent(result.effectiveTaxRate * 100)} divider />
-            <Row label="Marginal Federal Rate"value={formatPercent(result.marginalFederalRate * 100)} />
+            <Row label="Effective Tax Rate" value={formatPercent(result.effectiveTaxRate)} divider />
+            <Row label="Marginal Federal Rate"value={formatPercent(result.marginalFederalRate)} />
             {result.stateEffectiveRate > 0 && (
-              <Row label={`Effective ${result.stateName} Rate`} value={formatPercent(result.stateEffectiveRate * 100)} />
+              <Row label={`Effective ${result.stateName} Rate`} value={formatPercent(result.stateEffectiveRate)} />
             )}
           </tbody>
         </table>

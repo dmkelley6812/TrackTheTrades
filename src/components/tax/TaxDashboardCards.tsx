@@ -128,7 +128,7 @@ export default function TaxDashboardCards({ result }: Props) {
         />
         <Card
           label="Effective Tax Rate"
-          value={formatPercent(result.effectiveTaxRate * 100)}
+          value={formatPercent(result.effectiveTaxRate)}
           sub={`Total / AGI`}
           icon={Percent}
           iconBg="bg-hover"
@@ -136,7 +136,7 @@ export default function TaxDashboardCards({ result }: Props) {
         />
         <Card
           label="Marginal Federal Rate"
-          value={formatPercent(result.marginalFederalRate * 100)}
+          value={formatPercent(result.marginalFederalRate)}
           sub="On next dollar of ordinary income"
           icon={TrendingUp}
           iconBg="bg-hover"
