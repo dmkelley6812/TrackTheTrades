@@ -1,12 +1,16 @@
 import { useState, useEffect, useCallback } from 'react'
+import { Plus } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { useAccount } from '../contexts/AccountContext'
+import { useBadges } from '../hooks/useBadges'
 import { getDateRange, computeStats, formatLocalDate } from '../lib/utils'
-import type { DbTrade, DateRange } from '../types'
+import type { DbTrade, DateRange, BadgeDefinition } from '../types'
 import DateFilter from '../components/dashboard/DateFilter'
 import TradesTable from '../components/trades/TradesTable'
+import TradeForm from '../components/trades/TradeForm'
+import BadgeUnlockModal from '../components/badges/BadgeUnlockModal'
 import { formatCurrency, formatPercent } from '../lib/utils'
 
 export default function TradesPage() {
@@ -15,6 +19,9 @@ export default function TradesPage() {
   const [dateRange, setDateRange] = useState<DateRange>(getDateRange('this_month'))
   const [trades, setTrades] = useState<DbTrade[]>([])
   const [loading, setLoading] = useState(true)
+  const [showForm, setShowForm] = useState(false)
+  const [unlockQueue, setUnlockQueue] = useState<BadgeDefinition[]>([])
+  const { checkAndAward, revokeStale } = useBadges(user?.id ?? null, activeAccount?.id ?? null)
 
   useEffect(() => {
     if (!user || !activeAccount) return
@@ -65,7 +72,44 @@ export default function TradesPage() {
 
     setTrades(prev => prev.filter(t => !ids.includes(t.id)))
     toast.success(`Deleted ${ids.length} trade${ids.length !== 1 ? 's' : ''}`)
-  }, [user, trades])
+
+    const { data: remainingTrades } = await supabase
+      .from('trades')
+      .select('*')
+      .eq('user_id', user!.id)
+      .eq('account_id', activeAccount!.id)
+    await revokeStale((remainingTrades ?? []) as DbTrade[])
+  }, [user, activeAccount, trades, revokeStale])
+
+  const handleCreate = useCallback(async (
+    data: Omit<DbTrade, 'id' | 'user_id' | 'account_id' | 'created_at' | 'import_id'>
+  ) => {
+    const { data: inserted, error } = await supabase
+      .from('trades')
+      .insert({ ...data, user_id: user!.id, account_id: activeAccount!.id, import_id: null })
+      .select()
+      .single()
+    if (error) {
+      toast.error('Failed to save trade')
+      throw error
+    }
+    const trade = inserted as DbTrade
+    const start = formatLocalDate(dateRange.start)
+    const end = formatLocalDate(dateRange.end)
+    if (trade.trade_date >= start && trade.trade_date <= end) {
+      setTrades(prev => [trade, ...prev])
+    }
+    toast.success('Trade added')
+
+    const { data: allTradesData } = await supabase
+      .from('trades')
+      .select('*')
+      .eq('user_id', user!.id)
+      .eq('account_id', activeAccount!.id)
+      .order('exit_time', { ascending: true })
+    const newBadges = await checkAndAward((allTradesData ?? []) as DbTrade[])
+    if (newBadges.length > 0) setUnlockQueue(newBadges)
+  }, [user, activeAccount, dateRange, checkAndAward])
 
   const stats = computeStats(trades)
 
@@ -76,7 +120,16 @@ export default function TradesPage() {
           <h1 className="text-text-primary text-xl font-bold">Trades</h1>
           <p className="text-text-muted text-sm mt-0.5">Full trade history</p>
         </div>
-        <DateFilter value={dateRange} onChange={setDateRange} />
+        <div className="flex items-center gap-3">
+          <DateFilter value={dateRange} onChange={setDateRange} />
+          <button
+            onClick={() => setShowForm(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-accent hover:bg-accent/90 text-white rounded-lg text-sm font-medium transition-all"
+          >
+            <Plus className="w-4 h-4" />
+            Add Trade
+          </button>
+        </div>
       </div>
 
       {/* Quick stats bar */}
@@ -98,6 +151,14 @@ export default function TradesPage() {
       </div>
 
       <TradesTable trades={trades} loading={loading} onDelete={handleDelete} />
+
+      {showForm && (
+        <TradeForm onClose={() => setShowForm(false)} onSave={handleCreate} />
+      )}
+
+      {unlockQueue.length > 0 && (
+        <BadgeUnlockModal badges={unlockQueue} onClose={() => setUnlockQueue([])} />
+      )}
     </div>
   )
 }

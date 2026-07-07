@@ -81,9 +81,10 @@ const RARITY: Record<BadgeRarity, RarityConfig> = {
 
 interface BadgeCardProps {
   badgeStatus: BadgeWithStatus
+  isNew?: boolean
 }
 
-export default function BadgeCard({ badgeStatus }: BadgeCardProps) {
+export default function BadgeCard({ badgeStatus, isNew }: BadgeCardProps) {
   const { definition: def, isEarned, earnedAt, progress } = badgeStatus
   const r = RARITY[def.rarity]
   const Icon = ICON_MAP[def.icon] ?? Award
@@ -131,6 +132,15 @@ export default function BadgeCard({ badgeStatus }: BadgeCardProps) {
           {r.label}
         </span>
       </div>
+
+      {/* New badge indicator (top left) */}
+      {isEarned && isNew && (
+        <div className="absolute top-2.5 left-2.5 z-10">
+          <span className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-profit/15 text-profit border border-profit/40 animate-pulse">
+            New
+          </span>
+        </div>
+      )}
 
       {/* Icon circle */}
       <div className="relative mt-3 mb-1">

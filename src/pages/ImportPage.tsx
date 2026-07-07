@@ -4,11 +4,15 @@ import { FileText, Trash2, AlertTriangle, Loader2 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
-import type { DbImport } from '../types'
+import { useAccount } from '../contexts/AccountContext'
+import { useBadges } from '../hooks/useBadges'
+import type { DbImport, DbTrade } from '../types'
 import ImportWizard from '../components/import/ImportWizard'
 
 export default function ImportPage() {
   const { user } = useAuth()
+  const { activeAccount } = useAccount()
+  const { revokeStale } = useBadges(user?.id ?? null, activeAccount?.id ?? null)
   const [imports, setImports] = useState<DbImport[]>([])
   const [loadingImports, setLoadingImports] = useState(true)
   const [deleting, setDeleting] = useState<string | null>(null)
@@ -42,6 +46,15 @@ export default function ImportPage() {
       if (error) throw error
       setImports(prev => prev.filter(i => i.id !== imp.id))
       toast.success('Import deleted')
+
+      if (activeAccount) {
+        const { data: remainingTrades } = await supabase
+          .from('trades')
+          .select('*')
+          .eq('user_id', user!.id)
+          .eq('account_id', activeAccount.id)
+        await revokeStale((remainingTrades ?? []) as DbTrade[])
+      }
     } catch (e) {
       toast.error((e as Error).message)
     } finally {

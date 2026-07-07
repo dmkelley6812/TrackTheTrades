@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 import type { BadgeDefinition, DbEarnedBadge, DbTrade } from '../types'
-import { checkNewlyEarned } from '../lib/badges'
+import { checkNewlyEarned, computeStaleBadges } from '../lib/badges'
 
 export function useBadges(userId: string | null, accountId: string | null) {
   const [earnedBadges, setEarnedBadges] = useState<DbEarnedBadge[]>([])
@@ -60,5 +60,28 @@ export function useBadges(userId: string | null, accountId: string | null) {
     [userId, accountId, earnedBadges]
   )
 
-  return { earnedBadges, loading, checkAndAward, refresh: load }
+  // Deletes any earned_badges rows whose condition no longer holds against the
+  // given trades (e.g. after the user deletes the trades that earned them).
+  const revokeStale = useCallback(
+    async (trades: DbTrade[]): Promise<void> => {
+      if (!userId || !accountId) return
+
+      const stale = computeStaleBadges(trades, earnedBadges)
+      if (stale.length === 0) return
+
+      const staleIds = stale.map(b => b.id)
+      const { error } = await supabase
+        .from('earned_badges')
+        .delete()
+        .in('id', staleIds)
+        .eq('user_id', userId)
+
+      if (!error) {
+        setEarnedBadges(prev => prev.filter(b => !staleIds.includes(b.id)))
+      }
+    },
+    [userId, accountId, earnedBadges]
+  )
+
+  return { earnedBadges, loading, checkAndAward, revokeStale, refresh: load }
 }

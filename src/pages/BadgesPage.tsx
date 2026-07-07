@@ -33,6 +33,7 @@ export default function BadgesPage() {
   const [allTrades, setAllTrades] = useState<DbTrade[]>([])
   const [tradesLoading, setTradesLoading] = useState(true)
   const [unlockQueue, setUnlockQueue] = useState<BadgeDefinition[]>([])
+  const [recentlyEarnedIds, setRecentlyEarnedIds] = useState<Set<string>>(new Set())
 
   const { earnedBadges, loading: badgesLoading, checkAndAward } = useBadges(
     user?.id ?? null,
@@ -40,6 +41,22 @@ export default function BadgesPage() {
   )
 
   const checkedForAccount = useRef<string | null>(null)
+  const seenForAccount = useRef<string | null>(null)
+
+  // Flags badges earned since the last time this account's Badges page was viewed
+  useEffect(() => {
+    if (badgesLoading || !activeAccount) return
+    if (seenForAccount.current === activeAccount.id) return
+    seenForAccount.current = activeAccount.id
+
+    const storageKey = `ttt_badges_last_seen_${activeAccount.id}`
+    const lastSeen = localStorage.getItem(storageKey)
+    const recent = new Set(
+      earnedBadges.filter(b => !lastSeen || b.earned_at > lastSeen).map(b => b.badge_id)
+    )
+    setRecentlyEarnedIds(recent)
+    localStorage.setItem(storageKey, new Date().toISOString())
+  }, [badgesLoading, activeAccount, earnedBadges])
 
   useEffect(() => {
     if (!user || !activeAccount) return
@@ -63,7 +80,10 @@ export default function BadgesPage() {
     checkedForAccount.current = activeAccount?.id ?? null
 
     checkAndAward(allTrades).then(newBadges => {
-      if (newBadges.length > 0) setUnlockQueue(newBadges)
+      if (newBadges.length > 0) {
+        setUnlockQueue(newBadges)
+        setRecentlyEarnedIds(prev => new Set([...prev, ...newBadges.map(b => b.id)]))
+      }
     })
   }, [tradesLoading, badgesLoading, allTrades, activeAccount?.id, checkAndAward])
 
@@ -238,7 +258,11 @@ export default function BadgesPage() {
 
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
                 {cards.map(s => (
-                  <BadgeCard key={s.definition.id} badgeStatus={s} />
+                  <BadgeCard
+                    key={s.definition.id}
+                    badgeStatus={s}
+                    isNew={recentlyEarnedIds.has(s.definition.id)}
+                  />
                 ))}
               </div>
             </section>

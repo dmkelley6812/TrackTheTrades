@@ -118,17 +118,19 @@ const PERIOD_OPTIONS: { value: GoalPeriodType; label: string }[] = [
 ]
 
 interface GoalFormProps {
+  initialGoal?: DbGoal
   onClose: () => void
   onSave: (data: Omit<DbGoal, 'id' | 'user_id' | 'account_id' | 'created_at' | 'updated_at' | 'status'>) => Promise<void>
 }
 
-export default function GoalForm({ onClose, onSave }: GoalFormProps) {
-  const [selectedType, setSelectedType] = useState<GoalType>('profit_target')
-  const [title, setTitle] = useState('')
-  const [period, setPeriod] = useState<GoalPeriodType>('this_year')
-  const [customStart, setCustomStart] = useState('')
-  const [customEnd, setCustomEnd] = useState('')
-  const [targetValue, setTargetValue] = useState('')
+export default function GoalForm({ initialGoal, onClose, onSave }: GoalFormProps) {
+  const isEditing = !!initialGoal
+  const [selectedType, setSelectedType] = useState<GoalType>(initialGoal?.type ?? 'profit_target')
+  const [title, setTitle] = useState(initialGoal?.title ?? '')
+  const [period, setPeriod] = useState<GoalPeriodType>(initialGoal?.period ?? 'this_year')
+  const [customStart, setCustomStart] = useState(initialGoal?.period === 'custom' ? initialGoal.period_start : '')
+  const [customEnd, setCustomEnd] = useState(initialGoal?.period === 'custom' ? initialGoal.period_end : '')
+  const [targetValue, setTargetValue] = useState(initialGoal ? String(initialGoal.target_value) : '')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
@@ -178,7 +180,7 @@ export default function GoalForm({ onClose, onSave }: GoalFormProps) {
       })
       onClose()
     } catch {
-      setError('Failed to save goal. Please try again.')
+      setError(`Failed to ${isEditing ? 'update' : 'save'} goal. Please try again.`)
       setSaving(false)
     }
   }
@@ -194,7 +196,7 @@ export default function GoalForm({ onClose, onSave }: GoalFormProps) {
       <div className="bg-base border border-border rounded-2xl w-full max-w-xl shadow-2xl max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-border">
-          <h2 className="text-text-primary font-semibold text-base">New Goal</h2>
+          <h2 className="text-text-primary font-semibold text-base">{isEditing ? 'Edit Goal' : 'New Goal'}</h2>
           <button
             onClick={onClose}
             className="w-7 h-7 rounded-lg flex items-center justify-center text-text-muted hover:text-text-primary hover:bg-hover transition-colors"
@@ -350,7 +352,7 @@ export default function GoalForm({ onClose, onSave }: GoalFormProps) {
               disabled={saving}
               className="flex-1 px-4 py-2.5 rounded-lg bg-accent hover:bg-accent/90 text-white text-sm font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {saving ? 'Creating…' : 'Create Goal'}
+              {saving ? (isEditing ? 'Saving…' : 'Creating…') : (isEditing ? 'Save Changes' : 'Create Goal')}
             </button>
           </div>
         </form>

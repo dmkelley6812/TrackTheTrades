@@ -2,7 +2,13 @@
   "permissions": {
     "allow": [
       "Bash(npm install)",
-      "Bash(npm run build)"
+      "Bash(npm run build)",
+      "Bash(npm run *)",
+      "Skill(run)",
+      "Skill(run:*)",
+      "Bash(ls .claude/skills)",
+      "Bash(ls -la .env)",
+      "Bash(npx --yes playwright install chromium)"
     ]
   }
 }

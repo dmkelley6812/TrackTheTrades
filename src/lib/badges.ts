@@ -859,3 +859,18 @@ export function checkNewlyEarned(
     def => !alreadyEarned.has(def.id) && def.check(trades)
   )
 }
+
+// Returns earned badge rows whose condition no longer holds against the current
+// trade set (e.g. after deleting trades that were the basis for the badge).
+// Streak badges are excluded — they're already re-evaluated live in
+// computeBadgeStatuses and never gate on their DB row, so there's nothing to revoke.
+export function computeStaleBadges(
+  trades: DbTrade[],
+  earnedBadges: DbEarnedBadge[]
+): DbEarnedBadge[] {
+  return earnedBadges.filter(b => {
+    if (STREAK_BADGE_IDS.has(b.badge_id)) return false
+    const def = BADGE_DEFINITIONS.find(d => d.id === b.badge_id)
+    return def != null && !def.check(trades)
+  })
+}

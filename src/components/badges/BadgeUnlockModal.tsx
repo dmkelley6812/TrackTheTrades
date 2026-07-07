@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import {
   Footprints, TrendingUp, Rocket, Zap, Hash, Layers, Medal,
   Flame, Sparkles, Target, BarChart2, CalendarCheck, Calendar,
@@ -266,6 +267,15 @@ export default function BadgeUnlockModal({ badges, onClose }: Props) {
         >
           {remaining > 0 ? `Next (${remaining} more)` : 'Awesome!'}
         </button>
+
+        {/* View all badges link */}
+        <Link
+          to="/badges"
+          onClick={onClose}
+          className="block mt-3 text-xs font-medium text-text-muted hover:text-text-primary transition-colors"
+        >
+          View All Badges →
+        </Link>
       </div>
     </div>
   )

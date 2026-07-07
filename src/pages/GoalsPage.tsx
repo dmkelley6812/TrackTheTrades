@@ -18,6 +18,7 @@ export default function GoalsPage() {
   const [allTrades, setAllTrades] = useState<DbTrade[]>([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
+  const [editingGoal, setEditingGoal] = useState<DbGoal | null>(null)
   const [filter, setFilter] = useState<FilterTab>('active')
 
   // ── Data loading ────────────────────────────────────────────────────────────
@@ -65,6 +66,19 @@ export default function GoalsPage() {
     if (error) throw error
     setGoals(prev => [inserted as DbGoal, ...prev])
     toast.success('Goal created!')
+  }
+
+  async function handleUpdate(id: string, data: Omit<DbGoal, 'id' | 'user_id' | 'account_id' | 'created_at' | 'updated_at' | 'status'>) {
+    const { data: updated, error } = await supabase
+      .from('goals')
+      .update({ ...data, updated_at: new Date().toISOString() })
+      .eq('id', id)
+      .eq('user_id', user!.id)
+      .select()
+      .single()
+    if (error) throw error
+    setGoals(prev => prev.map(g => (g.id === id ? (updated as DbGoal) : g)))
+    toast.success('Goal updated!')
   }
 
   async function handleStatusUpdate(id: string, status: GoalStatus) {
@@ -216,6 +230,7 @@ export default function GoalsPage() {
             <GoalCard
               key={progress.goal.id}
               progress={progress}
+              onEdit={setEditingGoal}
               onArchive={id => handleStatusUpdate(id, 'archived')}
               onMarkAchieved={id => handleStatusUpdate(id, 'achieved')}
               onDelete={handleDelete}
@@ -284,10 +299,11 @@ export default function GoalsPage() {
       )}
 
       {/* Form modal */}
-      {showForm && (
+      {(showForm || editingGoal) && (
         <GoalForm
-          onClose={() => setShowForm(false)}
-          onSave={handleCreate}
+          initialGoal={editingGoal ?? undefined}
+          onClose={() => { setShowForm(false); setEditingGoal(null) }}
+          onSave={editingGoal ? data => handleUpdate(editingGoal.id, data) : handleCreate}
         />
       )}
     </div>

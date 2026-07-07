@@ -2,9 +2,9 @@ import { useState } from 'react'
 import { format, parseISO } from 'date-fns'
 import {
   DollarSign, Percent, CalendarDays, Calendar, TrendingUp,
-  TrendingDown, Hash, Trophy, MoreHorizontal, Archive, Trash2, CheckCircle,
+  TrendingDown, Hash, Trophy, MoreHorizontal, Archive, Trash2, CheckCircle, Pencil,
 } from 'lucide-react'
-import type { GoalProgress, GoalType } from '../../types'
+import type { DbGoal, GoalProgress, GoalType } from '../../types'
 import { formatGoalPeriodLabel } from '../../lib/goals'
 import { formatCurrency as fmtCurrency } from '../../lib/utils'
 
@@ -41,12 +41,13 @@ function fmtUnit(type: GoalType): string {
 
 interface GoalCardProps {
   progress: GoalProgress
+  onEdit: (goal: DbGoal) => void
   onArchive: (id: string) => void
   onMarkAchieved: (id: string) => void
   onDelete: (id: string) => void
 }
 
-export default function GoalCard({ progress, onArchive, onMarkAchieved, onDelete }: GoalCardProps) {
+export default function GoalCard({ progress, onEdit, onArchive, onMarkAchieved, onDelete }: GoalCardProps) {
   const [menuOpen, setMenuOpen] = useState(false)
   const {
     goal, currentValue, percentComplete, remaining, paceDelta,
@@ -187,7 +188,9 @@ export default function GoalCard({ progress, onArchive, onMarkAchieved, onDelete
             <div className="text-text-muted text-xs font-medium uppercase tracking-wider leading-none">
               {meta.label}
             </div>
-            <div className="text-text-dim text-xs mt-0.5">{periodLabel}</div>
+            <div className="text-text-dim text-xs mt-0.5">
+              {periodLabel} · Started {format(parseISO(goal.created_at), 'MMM d, yyyy')}
+            </div>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -204,6 +207,13 @@ export default function GoalCard({ progress, onArchive, onMarkAchieved, onDelete
             </button>
             {menuOpen && (
               <div className="absolute right-0 top-7 w-40 bg-base border border-border rounded-lg shadow-2xl z-20 overflow-hidden">
+                <button
+                  onMouseDown={() => onEdit(goal)}
+                  className="flex items-center gap-2 w-full px-3 py-2 text-sm text-text-muted hover:text-text-primary hover:bg-hover transition-colors"
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                  Edit
+                </button>
                 {isAchieved && goal.status !== 'achieved' && (
                   <button
                     onMouseDown={() => onMarkAchieved(goal.id)}
