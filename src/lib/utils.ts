@@ -223,6 +223,36 @@ export function computeWeeklyStats(trades: DbTrade[], weeksBack = 13): WeeklySta
   return result
 }
 
+// ─── Streaks ──────────────────────────────────────────────────────────────────
+
+// Current ongoing profitable day streak from the most recent trading day backwards
+export function currentProfitableDayStreak(trades: DbTrade[]): number {
+  const daily = computeDailyPnl(trades) // already sorted by date ascending
+  if (daily.length === 0) return 0
+  let streak = 0
+  for (let i = daily.length - 1; i >= 0; i--) {
+    if (daily[i].netPnl > 0) streak++
+    else break
+  }
+  return streak
+}
+
+// Longest consecutive profitable-day run across all trading history
+export function bestProfitableDayStreak(trades: DbTrade[]): number {
+  const daily = computeDailyPnl(trades)
+  let best = 0
+  let streak = 0
+  for (const d of daily) {
+    if (d.netPnl > 0) {
+      streak++
+      best = Math.max(best, streak)
+    } else {
+      streak = 0
+    }
+  }
+  return best
+}
+
 // ─── Color Helpers ────────────────────────────────────────────────────────────
 
 export function pnlColor(value: number): string {

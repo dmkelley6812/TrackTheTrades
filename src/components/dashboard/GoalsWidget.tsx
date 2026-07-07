@@ -5,6 +5,8 @@ import { format, parseISO } from 'date-fns'
 import type { DbGoal, DbTrade, GoalType } from '../../types'
 import { computeGoalProgress, formatGoalPeriodLabel } from '../../lib/goals'
 import { formatCurrency } from '../../lib/utils'
+import { useGoalCelebration } from '../../hooks/useGoalCelebration'
+import GoalAchievedModal from '../goals/GoalAchievedModal'
 
 // ─── Shared helpers ────────────────────────────────────────────────────────────
 
@@ -184,6 +186,8 @@ function GoalRow({ goal, allTrades }: { goal: DbGoal; allTrades: DbTrade[] }) {
 // ─── Widget ────────────────────────────────────────────────────────────────────
 
 export default function GoalsWidget({ goals, allTrades, loading }: Props) {
+  const { queue: celebrationQueue, celebrate } = useGoalCelebration(goals, allTrades)
+
   const activeGoals = useMemo(
     () => goals.filter(g => g.status === 'active'),
     [goals],
@@ -284,6 +288,13 @@ export default function GoalsWidget({ goals, allTrades, loading }: Props) {
           +{overflow} more goal{overflow > 1 ? 's' : ''}
           <ArrowRight className="w-3 h-3" />
         </Link>
+      )}
+
+      {celebrationQueue.length > 0 && (
+        <GoalAchievedModal
+          item={celebrationQueue[0]}
+          onClose={() => celebrate(celebrationQueue[0].goal.id)}
+        />
       )}
     </div>
   )

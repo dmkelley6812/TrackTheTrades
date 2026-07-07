@@ -29,7 +29,14 @@ src/
 │   ├── trade-matcher.ts       # FIFO round-trip matching algorithm
 │   ├── csv-parser.ts          # TradeStation CSV → ParsedOrder[] (PapaParse)
 │   ├── contract-specs.ts      # ~30 futures point values (ES=$50, NQ=$20, etc.)
-│   └── goals.ts               # computeGoalProgress() with pacing & projections
+│   ├── goals.ts               # computeGoalProgress() with pacing & projections
+│   ├── badges.ts              # BADGE_DEFINITIONS + computeBadgeStatuses/checkNewlyEarned
+│   └── coaching.ts            # evaluateCoachingCues() – today-scoped risk nudges
+├── hooks/
+│   ├── useBadges.ts            # load/award/revoke earned_badges
+│   ├── useGoalCelebration.ts   # queues newly-achieved goals for celebration
+│   ├── useCoachingSettings.ts  # loads/upserts coaching_settings row
+│   └── useCoachingCues.ts      # evaluates + per-day dismisses coaching cues
 ├── contexts/
 │   ├── AuthContext.tsx         # useAuth() – user, signIn, signUp, signOut
 │   └── AccountContext.tsx      # useAccount() – accounts[], activeAccount, CRUD
@@ -40,15 +47,19 @@ src/
 │   ├── ImportPage.tsx
 │   ├── GoalsPage.tsx
 │   ├── AccountsPage.tsx
+│   ├── BadgesPage.tsx
+│   ├── TaxPage.tsx
 │   └── CalendarPage.tsx
 └── components/
     ├── layout/                # AppLayout, Sidebar, StatusBanner
     ├── dashboard/             # DateFilter, StatsCards, PnlChart, RecentTrades,
-    │                          #   WeeklyStats, GoalsWidget
+    │                          #   WeeklyStats, GoalsWidget, StreakWidget, BadgesWidget
     ├── trades/                # TradesTable (sortable/filterable)
     ├── import/                # ImportWizard (upload → preview → confirm)
     ├── calendar/              # TradeCalendar (heatmap)
-    ├── goals/                 # GoalCard, GoalForm
+    ├── goals/                 # GoalCard, GoalForm, GoalAchievedModal
+    ├── badges/                # BadgeCard, BadgeUnlockModal
+    ├── coaching/              # CoachingBanner, CoachingSettingsPanel
     └── tax/                   # TaxDashboardCards, TaxBreakdownTable,
                                #   TaxCharts, TaxProfileForm
 ```
@@ -64,6 +75,7 @@ All protected routes are children of AppLayout. Unauthenticated users redirect t
 /import      → ImportPage
 /goals       → GoalsPage
 /accounts    → AccountsPage
+/badges      → BadgesPage
 /tax         → TaxPage
 /auth        → AuthPage (public)
 *            → redirect /dashboard
@@ -273,11 +285,13 @@ VITE_SUPABASE_ANON_KEY=
 **Route:** `/tax` — Tax Reserve Tracker page
 
 **Services:**
+
 - `src/lib/tax-brackets.ts` — Federal bracket tables for 2024+, LTCG rates, standard deductions, NIIT thresholds. Data-driven; add new years by extending the `FEDERAL_ORDINARY_BRACKETS` / `FEDERAL_LTCG_BRACKETS` objects.
 - `src/lib/state-tax.ts` — `StateTaxProvider` covering all 50 states + DC (none/flat/progressive). Add states by appending to `STATE_TAX_TABLE`.
 - `src/lib/tax-engine.ts` — `computeTaxEstimate(input)` orchestrates ordinary tax, LTCG (stacked), NIIT (3.8%), state tax, reserve mode multiplier, and reserve status. `computeAssetClassIncomeFromTrades()` auto-groups YTD trades by account product_type.
 
 **Asset class tax treatment:**
+
 - Futures → Section 1256: 60% LTCG / 40% ordinary income
 - Stocks / Options / Crypto → short-term (ordinary income rates)
 - Forex → ordinary income
@@ -286,15 +300,29 @@ VITE_SUPABASE_ANON_KEY=
 
 **DB table:** `tax_profiles` (one row per user, not per account — tax filing is user-level).
 
+## Badges, Streaks & Coaching
+
+**Badges** (`src/lib/badges.ts`): 40+ `BADGE_DEFINITIONS` (milestone/performance/discipline/mastery × common/rare/epic/legendary), persisted in `earned_badges` and checked/awarded via `useBadges` from `TradesPage`/`ImportPage`. Win-streak and profitable-day-streak badges are recomputed live every render (not persisted) so they auto-revoke the instant a streak breaks — see `STREAK_BADGE_IDS` in `badges.ts`. Unlock celebration is `BadgeUnlockModal` (confetti/ray-burst, rarity-colored).
+
+**Streaks**: `currentProfitableDayStreak()` / `bestProfitableDayStreak()` live in `src/lib/utils.ts` (shared by badges and the dashboard `StreakWidget`).
+
+**Goal celebration**: `useGoalCelebration` (hook) watches active goals for `isAchieved` and queues a one-time `GoalAchievedModal` (same confetti/glow CSS as badges, profit-green theme). Celebrated goal ids persist in `localStorage` (`ttt_celebrated_goals`) so they never re-fire. Wired into both `GoalsPage` and the dashboard `GoalsWidget`.
+
+**Coaching** (`src/lib/coaching.ts`): proactive, same-day risk-management nudges — large single loss, losing streak, daily loss limit — each a % of the active account's `starting_balance`. Preferences (`coaching_settings` table, one row per user) are toggle + threshold per cue type, editable via the gear icon in `CoachingBanner` → `CoachingSettingsPanel`. Per-instance dismissal is `localStorage`-only (`ttt_coaching_dismissed_<accountId>_<date>`, resets daily); disabling a cue _type_ persists to the DB. All cues return `[]` if the active account has no `starting_balance` set.
+
 ## Migrations
 
 Run in order in Supabase SQL editor:
 
 1. `supabase/migrations/001_initial.sql` – base schema (imports, orders, trades, goals)
-2. `supabase/migrations/002_accounts.sql` – accounts table + account_id FK columns + missing UPDATE policies
-3. `supabase/migrations/004_tax_profiles.sql` – tax_profiles table with RLS
+2. `supabase/migrations/002_goals.sql` – goals table
+3. `supabase/migrations/002_accounts.sql` – accounts table + account_id FK columns + missing UPDATE policies
+4. `supabase/migrations/003_badges.sql` – earned_badges table
+5. `supabase/migrations/004_tax_profiles.sql` – tax_profiles table with RLS
+6. `supabase/migrations/005_tax_profile_credits.sql` – tax_profiles column additions
+7. `supabase/migrations/006_coaching.sql` – coaching_settings table with RLS
 
-When adding new migrations, prefix with `003_`, `004_`, etc. Always add `IF NOT EXISTS` guards and `IF NOT EXISTS` index creation. Always add both the UPDATE policy (missing from 001) and the account_id FK when creating new tables.
+When adding new migrations, prefix with the next number. Always add `IF NOT EXISTS` guards and `IF NOT EXISTS` index creation. Always add both the UPDATE policy (missing from 001) and the account_id FK when creating new tables (user-level tables like `tax_profiles`/`coaching_settings` use `UNIQUE(user_id)` instead of `account_id`).
 
 ## Adding a New Feature: Checklist
 
@@ -308,3 +336,7 @@ When adding new migrations, prefix with `003_`, `004_`, etc. Always add `IF NOT 
 ## DO THIS WITH EVERY REQUEST:
 
 - IF any changes are made to the app/files, ensure this CLAUDE.md file is updated to reflect them if necessary to assist with token usage efficiency.
+
+## DO NOT DO:
+
+- Don't try to use the "RUN" skill to run the app in the browser and test things. Just tell me when your edits are done and I will test it myself in the browser. You waste way to much time and credits trying to run stuff in the browser.

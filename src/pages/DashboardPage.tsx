@@ -24,12 +24,18 @@ import RecentTrades from '../components/dashboard/RecentTrades'
 import WeeklyStatsTable from '../components/dashboard/WeeklyStats'
 import TradeCalendar from '../components/calendar/TradeCalendar'
 import ForecastWidget from '../components/dashboard/ForecastWidget'
+import StreakWidget from '../components/dashboard/StreakWidget'
+import CoachingBanner from '../components/coaching/CoachingBanner'
+import { useCoachingSettings } from '../hooks/useCoachingSettings'
+import { useCoachingCues } from '../hooks/useCoachingCues'
 
 // ─── Section definitions ──────────────────────────────────────────────────────
 
-type SectionId = 'stats' | 'charts' | 'recent' | 'calendar' | 'weekly' | 'goals' | 'forecast'
+type SectionId = 'coaching' | 'streak' | 'stats' | 'charts' | 'recent' | 'calendar' | 'weekly' | 'goals' | 'forecast'
 
 const SECTION_META: Record<SectionId, { label: string; subtitle: string }> = {
+  coaching: { label: 'Coaching',           subtitle: "Risk-management nudges based on today's trading" },
+  streak:   { label: 'Streak',             subtitle: 'Consecutive profitable trading days' },
   stats:    { label: 'Performance Stats',  subtitle: 'Key metrics for the selected period' },
   charts:   { label: 'Charts',             subtitle: 'Equity curve & daily P&L' },
   recent:   { label: 'Recent Trades',      subtitle: 'Latest trades in selected period' },
@@ -39,7 +45,7 @@ const SECTION_META: Record<SectionId, { label: string; subtitle: string }> = {
   forecast: { label: 'Forecast',           subtitle: 'Projected period-end P&L based on your avg daily' },
 }
 
-const DEFAULT_ORDER: SectionId[] = ['goals', 'forecast', 'stats', 'charts', 'weekly', 'recent', 'calendar']
+const DEFAULT_ORDER: SectionId[] = ['coaching', 'streak', 'goals', 'forecast', 'stats', 'charts', 'weekly', 'recent', 'calendar']
 const STORAGE_KEY = 'ttt_dashboard_order'
 
 function loadOrder(): SectionId[] {
@@ -110,6 +116,9 @@ export default function DashboardPage() {
   const [goalsLoading, setGoalsLoading] = useState(true)
   const [order, setOrder] = useState<SectionId[]>(loadOrder)
   const [activeId, setActiveId] = useState<SectionId | null>(null)
+
+  const { settings: coachingSettings, updateSettings: updateCoachingSettings } = useCoachingSettings(user?.id ?? null)
+  const { cues: coachingCues, dismiss: dismissCoachingCue } = useCoachingCues(allTrades, activeAccount, coachingSettings)
 
   useEffect(() => {
     if (!user || !activeAccount) return
@@ -191,6 +200,17 @@ export default function DashboardPage() {
 
   function renderContent(id: SectionId) {
     switch (id) {
+      case 'coaching':
+        return (
+          <CoachingBanner
+            cues={coachingCues}
+            onDismiss={dismissCoachingCue}
+            settings={coachingSettings}
+            onUpdateSettings={updateCoachingSettings}
+          />
+        )
+      case 'streak':
+        return <StreakWidget trades={allTrades} loading={allLoading} />
       case 'stats':
         return <StatsCards stats={stats} loading={loading} />
       case 'charts':

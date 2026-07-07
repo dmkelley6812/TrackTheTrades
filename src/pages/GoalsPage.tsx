@@ -8,6 +8,8 @@ import type { DbGoal, DbTrade, GoalStatus } from '../types'
 import { computeGoalProgress } from '../lib/goals'
 import GoalCard from '../components/goals/GoalCard'
 import GoalForm from '../components/goals/GoalForm'
+import GoalAchievedModal from '../components/goals/GoalAchievedModal'
+import { useGoalCelebration } from '../hooks/useGoalCelebration'
 
 type FilterTab = 'all' | 'active' | 'achieved' | 'archived'
 
@@ -110,6 +112,8 @@ export default function GoalsPage() {
     () => goals.map(g => computeGoalProgress(g, allTrades)),
     [goals, allTrades],
   )
+
+  const { queue: celebrationQueue, celebrate } = useGoalCelebration(goals, allTrades)
 
   // ── Filter ──────────────────────────────────────────────────────────────────
   const filtered = useMemo(() => {
@@ -304,6 +308,13 @@ export default function GoalsPage() {
           initialGoal={editingGoal ?? undefined}
           onClose={() => { setShowForm(false); setEditingGoal(null) }}
           onSave={editingGoal ? data => handleUpdate(editingGoal.id, data) : handleCreate}
+        />
+      )}
+
+      {celebrationQueue.length > 0 && (
+        <GoalAchievedModal
+          item={celebrationQueue[0]}
+          onClose={() => celebrate(celebrationQueue[0].goal.id)}
         />
       )}
     </div>

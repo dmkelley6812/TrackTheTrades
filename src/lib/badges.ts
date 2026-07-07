@@ -1,5 +1,5 @@
 import type { BadgeDefinition, BadgeWithStatus, DbEarnedBadge, DbTrade } from '../types'
-import { computeDailyPnl, computeStats, computeWeeklyStats } from './utils'
+import { computeDailyPnl, computeStats, computeWeeklyStats, currentProfitableDayStreak } from './utils'
 
 // ─── Private helpers ──────────────────────────────────────────────────────────
 
@@ -12,18 +12,6 @@ function currentWinStreak(trades: DbTrade[]): number {
   let streak = 0
   for (let i = sorted.length - 1; i >= 0; i--) {
     if (sorted[i].net_pnl > 0) streak++
-    else break
-  }
-  return streak
-}
-
-// Current ongoing profitable day streak from the most recent trading day backwards
-function currentProfitableDayStreak(trades: DbTrade[]): number {
-  const daily = computeDailyPnl(trades) // already sorted by date ascending
-  if (daily.length === 0) return 0
-  let streak = 0
-  for (let i = daily.length - 1; i >= 0; i--) {
-    if (daily[i].netPnl > 0) streak++
     else break
   }
   return streak

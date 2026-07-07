@@ -294,6 +294,30 @@ export interface BadgeWithStatus {
   progress?: BadgeProgress
 }
 
+// ─── Coaching Types ───────────────────────────────────────────────────────────
+
+export type CoachingCueType = 'large_loss' | 'loss_streak' | 'daily_loss'
+
+export interface DbCoachingSettings {
+  id: string
+  user_id: string
+  large_loss_enabled: boolean
+  large_loss_pct: number
+  loss_streak_enabled: boolean
+  loss_streak_count: number
+  daily_loss_enabled: boolean
+  daily_loss_pct: number
+  created_at: string
+  updated_at: string
+}
+
+export interface CoachingCue {
+  id: string          // deterministic: `${type}-${todayDateStr}`, used for per-day dismissal
+  type: CoachingCueType
+  title: string
+  message: string
+}
+
 // ─── Tax Reserve Types ────────────────────────────────────────────────────────
 
 export type FilingStatus =
