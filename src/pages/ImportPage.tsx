@@ -8,6 +8,7 @@ import { useAccount } from '../contexts/AccountContext'
 import { useBadges } from '../hooks/useBadges'
 import type { DbImport, DbTrade } from '../types'
 import ImportWizard from '../components/import/ImportWizard'
+import { loadTradeHistory } from '../lib/trade-history'
 
 export default function ImportPage() {
   const { user } = useAuth()
@@ -48,12 +49,8 @@ export default function ImportPage() {
       toast.success('Import deleted')
 
       if (activeAccount) {
-        const { data: remainingTrades } = await supabase
-          .from('trades')
-          .select('*')
-          .eq('user_id', user!.id)
-          .eq('account_id', activeAccount.id)
-        await revokeStale((remainingTrades ?? []) as DbTrade[])
+        const remainingTrades = await loadTradeHistory(user!.id, activeAccount.id)
+        await revokeStale(remainingTrades)
       }
     } catch (e) {
       toast.error((e as Error).message)
@@ -69,7 +66,7 @@ export default function ImportPage() {
         <p className="text-text-muted text-sm mt-0.5">Upload your TradingView order history CSV</p>
       </div>
 
-      <ImportWizard key={imports.length} onImportComplete={fetchImports} />
+      <ImportWizard onImportComplete={fetchImports} />
 
       {/* Import history */}
       <div>

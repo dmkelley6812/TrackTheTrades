@@ -8,6 +8,10 @@ import { BADGE_DEFINITIONS, computeBadgeStatuses } from '../lib/badges'
 import type { BadgeCategory, BadgeDefinition, BadgeWithStatus, DbTrade } from '../types'
 import BadgeCard from '../components/badges/BadgeCard'
 import BadgeUnlockModal from '../components/badges/BadgeUnlockModal'
+import ProfileEmblems, { ProfileAvatar } from '../components/badges/ProfileEmblems'
+import { useProgression } from '../contexts/ProgressionContext'
+import { loadTradeHistory } from '../lib/trade-history'
+import toast from 'react-hot-toast'
 
 const CATEGORIES: { id: BadgeCategory; label: string; description: string; emoji: string }[] = [
   { id: 'milestone',   label: 'Milestones',   description: 'One-time achievements that mark your firsts', emoji: '🏁' },
@@ -18,16 +22,10 @@ const CATEGORIES: { id: BadgeCategory; label: string; description: string; emoji
 
 const TOTAL = BADGE_DEFINITIONS.length
 
-// XP-style level: 1 badge = 1 XP, levels every 5 badges
-function computeLevel(earned: number) {
-  const level = Math.floor(earned / 5) + 1
-  const xpInLevel = earned % 5
-  return { level, xpInLevel, xpNeeded: 5 }
-}
-
 const RARITY_ORDER = ['common', 'rare', 'epic', 'legendary'] as const
 
 export default function BadgesPage() {
+  const { progression, loading: progressionLoading } = useProgression()
   const { user } = useAuth()
   const { activeAccount } = useAccount()
   const [allTrades, setAllTrades] = useState<DbTrade[]>([])
@@ -62,16 +60,16 @@ export default function BadgesPage() {
     if (!user || !activeAccount) return
     setTradesLoading(true)
     checkedForAccount.current = null
-    supabase
-      .from('trades')
-      .select('*')
-      .eq('user_id', user.id)
-      .eq('account_id', activeAccount.id)
-      .order('exit_time', { ascending: true })
-      .then(({ data, error }) => {
-        if (!error) setAllTrades((data ?? []) as DbTrade[])
+    let cancelled = false
+    setAllTrades([])
+    loadTradeHistory(user.id, activeAccount.id)
+      .then(data => {
+        if (cancelled) return
+        setAllTrades(data)
         setTradesLoading(false)
       })
+      .catch(() => { if (!cancelled) toast.error('Could not load badge history. Please refresh to retry.') })
+    return () => { cancelled = true }
   }, [user, activeAccount])
 
   useEffect(() => {
@@ -84,7 +82,7 @@ export default function BadgesPage() {
         setUnlockQueue(newBadges)
         setRecentlyEarnedIds(prev => new Set([...prev, ...newBadges.map(b => b.id)]))
       }
-    })
+    }).catch(() => toast.error('Could not save badge rewards. Please refresh to retry.'))
   }, [tradesLoading, badgesLoading, allTrades, activeAccount?.id, checkAndAward])
 
   const loading = tradesLoading || badgesLoading
@@ -93,8 +91,8 @@ export default function BadgesPage() {
     : computeBadgeStatuses(allTrades, earnedBadges)
 
   const earnedCount = statuses.filter(s => s.isEarned).length
-  const { level, xpInLevel, xpNeeded } = computeLevel(earnedCount)
-  const xpPct = Math.round((xpInLevel / xpNeeded) * 100)
+  const { level, xpInLevel, xpNeeded, totalXp } = progression
+  const xpPct = xpNeeded === null ? 100 : Math.round((xpInLevel / xpNeeded) * 100)
 
   const byCategory = (cat: BadgeCategory) =>
     statuses.filter(s => s.definition.category === cat)
@@ -144,12 +142,12 @@ export default function BadgesPage() {
         </div>
 
         {/* Level / XP progress bar */}
-        {!loading && (
+        {!loading && !progressionLoading && (
           <div className="rounded-2xl border border-border bg-surface p-5">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 rounded-xl bg-accent/15 border border-accent/30 flex items-center justify-center">
-                  <Trophy className="w-6 h-6 text-accent" />
+                  <ProfileAvatar />
                 </div>
                 <div>
                   <div className="text-text-primary font-bold text-lg leading-none">
@@ -162,9 +160,9 @@ export default function BadgesPage() {
               </div>
               <div className="text-right">
                 <div className="text-text-primary font-bold tabular-nums">
-                  {xpInLevel} <span className="text-text-muted font-normal text-sm">/ {xpNeeded} XP</span>
+                  {totalXp.toLocaleString()} <span className="text-text-muted font-normal text-sm">total XP</span>
                 </div>
-                <div className="text-text-dim text-xs mt-0.5">to next level</div>
+                <div className="text-text-dim text-xs mt-0.5">{xpNeeded === null ? 'Maximum level reached' : `${xpInLevel.toLocaleString()} / ${xpNeeded.toLocaleString()} XP toward level ${level + 1}`}</div>
               </div>
             </div>
 
@@ -212,6 +210,8 @@ export default function BadgesPage() {
             </div>
           </div>
         )}
+
+        <ProfileEmblems />
 
         {/* Loading skeleton */}
         {loading && (

@@ -93,6 +93,8 @@ function makeConfetti(colors: string[]): ConfettiPiece[] {
   }))
 }
 
+import { BADGE_XP } from '../../lib/progression'
+
 interface Props {
   badges: BadgeDefinition[]
   onClose: () => void
@@ -167,7 +169,7 @@ export default function BadgeUnlockModal({ badges, onClose }: Props) {
               border: `1px solid rgba(${cfg.glowColor}, 0.4)`,
             }}
           >
-            Badge Unlocked!
+            Badge Unlocked! · +{BADGE_XP[badge.rarity].toLocaleString()} XP
           </span>
         </div>
 

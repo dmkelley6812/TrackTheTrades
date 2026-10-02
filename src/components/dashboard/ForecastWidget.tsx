@@ -110,7 +110,7 @@ export default function ForecastWidget({ allTrades, loading }: ForecastWidgetPro
           <div className="h-8 bg-deep rounded-lg animate-pulse w-36" />
           <div className="h-3 bg-deep rounded animate-pulse w-56" />
           <div className="h-1.5 bg-deep rounded-full animate-pulse mt-3" />
-          <div className="grid grid-cols-3 gap-3 mt-4">
+          <div className="grid grid-cols-1 @sm:grid-cols-3 gap-3 mt-4">
             {[1, 2, 3].map(i => (
               <div key={i} className="h-14 bg-deep rounded-lg animate-pulse" />
             ))}
@@ -165,7 +165,7 @@ export default function ForecastWidget({ allTrades, loading }: ForecastWidgetPro
           )}
 
           {/* Stat grid */}
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 @sm:grid-cols-3 gap-3">
             <div className="bg-deep rounded-lg p-3">
               <div className="text-text-dim text-[10px] uppercase tracking-wide mb-1">Current P&amp;L</div>
               <div className={`text-sm font-bold tabular-nums ${pnlClass(forecast.currentPnl)}`}>

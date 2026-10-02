@@ -58,3 +58,10 @@
     font-family: 'JetBrains Mono', 'Fira Code', monospace;
   }
 }
+
+/* react-grid-layout drag placeholder — match dark accent theme */
+.react-grid-item.react-grid-placeholder {
+  background: #4a7cf4 !important;
+  opacity: 0.15 !important;
+  border-radius: 0.75rem;
+}

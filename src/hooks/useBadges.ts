@@ -28,6 +28,12 @@ export function useBadges(userId: string | null, accountId: string | null) {
     load()
   }, [load])
 
+  useEffect(() => {
+    const refresh = () => { void load() }
+    window.addEventListener('ttt_progression_changed', refresh)
+    return () => window.removeEventListener('ttt_progression_changed', refresh)
+  }, [load])
+
   // Evaluates all badge conditions against the provided trades, inserts any
   // newly-passed badges into the DB, updates local state, and returns the
   // definitions that were just awarded so the caller can show toasts.
@@ -35,8 +41,14 @@ export function useBadges(userId: string | null, accountId: string | null) {
     async (trades: DbTrade[]): Promise<BadgeDefinition[]> => {
       if (!userId || !accountId) return []
 
-      const newlyEarned = checkNewlyEarned(trades, earnedBadges)
-      if (newlyEarned.length === 0) return []
+      const { data: existing, error: readError } = await supabase.from('earned_badges')
+        .select('*').eq('user_id', userId).eq('account_id', accountId)
+      if (readError) throw readError
+      const newlyEarned = checkNewlyEarned(trades, (existing ?? []) as DbEarnedBadge[])
+      if (newlyEarned.length === 0) {
+        window.dispatchEvent(new Event('ttt_progression_changed'))
+        return []
+      }
 
       const now = new Date().toISOString()
       const inserts = newlyEarned.map(def => ({
@@ -48,14 +60,16 @@ export function useBadges(userId: string | null, accountId: string | null) {
 
       const { data, error } = await supabase
         .from('earned_badges')
-        .insert(inserts)
+        .upsert(inserts, { onConflict: 'user_id,account_id,badge_id', ignoreDuplicates: true })
         .select()
 
       if (!error && data) {
         setEarnedBadges(prev => [...prev, ...(data as DbEarnedBadge[])])
       }
 
-      return newlyEarned
+      if (error) throw error
+      window.dispatchEvent(new Event('ttt_progression_changed'))
+      return newlyEarned.filter(def => data?.some(row => row.badge_id === def.id))
     },
     [userId, accountId, earnedBadges]
   )
@@ -66,8 +80,14 @@ export function useBadges(userId: string | null, accountId: string | null) {
     async (trades: DbTrade[]): Promise<void> => {
       if (!userId || !accountId) return
 
-      const stale = computeStaleBadges(trades, earnedBadges)
-      if (stale.length === 0) return
+      const { data: existing, error: readError } = await supabase.from('earned_badges')
+        .select('*').eq('user_id', userId).eq('account_id', accountId)
+      if (readError) throw readError
+      const stale = computeStaleBadges(trades, (existing ?? []) as DbEarnedBadge[])
+      if (stale.length === 0) {
+        window.dispatchEvent(new Event('ttt_progression_changed'))
+        return
+      }
 
       const staleIds = stale.map(b => b.id)
       const { error } = await supabase
@@ -79,6 +99,7 @@ export function useBadges(userId: string | null, accountId: string | null) {
       if (!error) {
         setEarnedBadges(prev => prev.filter(b => !staleIds.includes(b.id)))
       }
+      window.dispatchEvent(new Event('ttt_progression_changed'))
     },
     [userId, accountId, earnedBadges]
   )

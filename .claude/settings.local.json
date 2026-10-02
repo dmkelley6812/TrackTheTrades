@@ -8,7 +8,8 @@
       "Skill(run:*)",
       "Bash(ls .claude/skills)",
       "Bash(ls -la .env)",
-      "Bash(npx --yes playwright install chromium)"
+      "Bash(npx --yes playwright install chromium)",
+      "Bash(node -e \"console.log\\(require\\('./node_modules/react-grid-layout/package.json'\\).version\\)\")"
     ]
   }
 }

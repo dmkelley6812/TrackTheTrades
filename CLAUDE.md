@@ -6,7 +6,7 @@
 - Tailwind CSS with custom dark theme (`tailwind.config.js`)
 - Supabase (PostgreSQL + Row-Level Security + Auth)
 - Netlify hosting (`netlify.toml` with SPA redirect)
-- Key libraries: recharts, papaparse, date-fns, react-router-dom v6, lucide-react, react-hot-toast, @dnd-kit
+- Key libraries: recharts, papaparse, date-fns, react-router-dom v6, lucide-react, react-hot-toast, react-grid-layout
 
 ## Commands
 
@@ -310,6 +310,12 @@ VITE_SUPABASE_ANON_KEY=
 
 **Coaching** (`src/lib/coaching.ts`): proactive, same-day risk-management nudges — large single loss, losing streak, daily loss limit — each a % of the active account's `starting_balance`. Preferences (`coaching_settings` table, one row per user) are toggle + threshold per cue type, editable via the gear icon in `CoachingBanner` → `CoachingSettingsPanel`. Per-instance dismissal is `localStorage`-only (`ttt_coaching_dismissed_<accountId>_<date>`, resets daily); disabling a cue _type_ persists to the DB. All cues return `[]` if the active account has no `starting_balance` set.
 
+## Dashboard Layout
+
+`DashboardPage.tsx` renders its 9 widgets (coaching/streak/stats/charts/recent/calendar/weekly/goals/forecast) on desktop via **`react-grid-layout`** (pinned to `1.5.2` — classic `WidthProvider`/`cols`/`draggableHandle`/`compactType` API, not the `2.x` hooks rewrite; types come from `@types/react-grid-layout@1.3.6` since the package ships none). A single `Layout[]` array (`{ i: SectionId, x, y, w, h }`) is the source of truth for both position and size, persisted to `localStorage` (`ttt_dashboard_layout`). Width is one of 3 presets — S/M/L → `w: 1/2/4` out of `cols=4` — set via the `SizeSelector` buttons, never RGL's own freeform corner-resize (`isResizable={false}` everywhere; RGL only drives drag-to-reposition). `h` is a fixed per-widget-type constant in `WIDGET_H` (content for all 9 widgets is effectively bounded — capped lists, fixed chart heights, max 3 coaching cues — so a hand-tuned row count per widget is a reasonable fit); `GridWidget`'s content slot has `overflow-y-auto` as a safety net if real content ever exceeds its `h`. Drag handles and the size selector are **edit-mode only** (`Customize`/`Done` toggle in the header controls `editMode`; `draggableHandle=".drag-handle"` + `isDraggable={editMode}` keep the default view free of handle chrome). `Reset layout` (edit-mode only) clears the storage key back to `DEFAULT_LAYOUT`. Below the `768px` breakpoint (`useIsDesktop` hook), RGL is skipped entirely in favor of a plain full-width stack in `DEFAULT_ORDER` — no drag/customize on mobile.
+
+Each `GridWidget` is wrapped in `@container` (Tailwind's `@tailwindcss/container-queries` plugin, registered in `tailwind.config.js`) so widget internals can respond to their **own box width** instead of the page viewport — required because a narrow S/M widget can sit on a desktop-width viewport. `StatsCards.tsx`, `ForecastWidget.tsx`, and the `charts` case in `DashboardPage.tsx` use `@sm:`/`@2xl:` grid variants instead of viewport breakpoints for exactly this reason; if a new widget's internals ever look cramped at S/M sizes, check whether it's still keying off `sm:`/`lg:`/`xl:` instead of `@sm:`/`@lg:`/`@2xl:`.
+
 ## Migrations
 
 Run in order in Supabase SQL editor:
@@ -336,7 +342,3 @@ When adding new migrations, prefix with the next number. Always add `IF NOT EXIS
 ## DO THIS WITH EVERY REQUEST:
 
 - IF any changes are made to the app/files, ensure this CLAUDE.md file is updated to reflect them if necessary to assist with token usage efficiency.
-
-## DO NOT DO:
-
-- Don't try to use the "RUN" skill to run the app in the browser and test things. Just tell me when your edits are done and I will test it myself in the browser. You waste way to much time and credits trying to run stuff in the browser.

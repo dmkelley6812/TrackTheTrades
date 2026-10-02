@@ -12,6 +12,7 @@ import TradesTable from '../components/trades/TradesTable'
 import TradeForm from '../components/trades/TradeForm'
 import BadgeUnlockModal from '../components/badges/BadgeUnlockModal'
 import { formatCurrency, formatPercent } from '../lib/utils'
+import { loadTradeHistory } from '../lib/trade-history'
 
 export default function TradesPage() {
   const { user } = useAuth()
@@ -73,12 +74,8 @@ export default function TradesPage() {
     setTrades(prev => prev.filter(t => !ids.includes(t.id)))
     toast.success(`Deleted ${ids.length} trade${ids.length !== 1 ? 's' : ''}`)
 
-    const { data: remainingTrades } = await supabase
-      .from('trades')
-      .select('*')
-      .eq('user_id', user!.id)
-      .eq('account_id', activeAccount!.id)
-    await revokeStale((remainingTrades ?? []) as DbTrade[])
+    const remainingTrades = await loadTradeHistory(user!.id, activeAccount!.id)
+    await revokeStale(remainingTrades)
   }, [user, activeAccount, trades, revokeStale])
 
   const handleCreate = useCallback(async (
@@ -101,14 +98,14 @@ export default function TradesPage() {
     }
     toast.success('Trade added')
 
-    const { data: allTradesData } = await supabase
-      .from('trades')
-      .select('*')
-      .eq('user_id', user!.id)
-      .eq('account_id', activeAccount!.id)
-      .order('exit_time', { ascending: true })
-    const newBadges = await checkAndAward((allTradesData ?? []) as DbTrade[])
-    if (newBadges.length > 0) setUnlockQueue(newBadges)
+    try {
+      const allTradesData = await loadTradeHistory(user!.id, activeAccount!.id)
+      const newBadges = await checkAndAward(allTradesData)
+      if (newBadges.length > 0) setUnlockQueue(newBadges)
+    } catch {
+      toast.error('Trade saved, but badge rewards could not be saved. Visit Badges to retry.')
+    }
+    window.dispatchEvent(new Event('ttt_progression_changed'))
   }, [user, activeAccount, dateRange, checkAndAward])
 
   const stats = computeStats(trades)

@@ -27,6 +27,7 @@ import BadgeUnlockModal from "../badges/BadgeUnlockModal";
 import type { BadgeDefinition, DbTrade, MatchedTrade, ParsedOrder } from "../../types";
 import { formatCurrency, formatDuration } from "../../lib/utils";
 import { format } from "date-fns";
+import { loadTradeHistory } from '../../lib/trade-history';
 
 type Step = "upload" | "preview" | "importing" | "done";
 
@@ -157,7 +158,7 @@ export default function ImportWizard({ onImportComplete }: ImportWizardProps) {
         setProcessing(false);
       }
     },
-    [user],
+    [user, activeAccount],
   );
 
   function handleDrop(e: React.DragEvent) {
@@ -258,14 +259,14 @@ export default function ImportWizard({ onImportComplete }: ImportWizardProps) {
       );
 
       // Check for newly earned badges against the full trade history
-      const { data: allTradesData } = await supabase
-        .from("trades")
-        .select("*")
-        .eq("user_id", user.id)
-        .eq("account_id", activeAccount!.id)
-        .order("exit_time", { ascending: true });
-      const newBadges = await checkAndAward((allTradesData ?? []) as DbTrade[]);
-      if (newBadges.length > 0) setUnlockQueue(newBadges);
+      try {
+        const allTradesData = await loadTradeHistory(user.id, activeAccount!.id);
+        const newBadges = await checkAndAward(allTradesData);
+        if (newBadges.length > 0) setUnlockQueue(newBadges);
+      } catch {
+        toast.error('Trades imported, but badge rewards could not be saved. Visit Badges to retry.');
+      }
+      window.dispatchEvent(new Event('ttt_progression_changed'));
 
       onImportComplete?.();
     } catch (e) {

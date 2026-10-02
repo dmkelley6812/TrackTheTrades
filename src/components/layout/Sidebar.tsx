@@ -53,6 +53,8 @@ function AccountDot({ color }: { color: string }) {
   return <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
 }
 
+import { ProfileAvatar } from '../badges/ProfileEmblems'
+
 export default function Sidebar() {
   const { user, signOut } = useAuth()
   const { accounts, activeAccount, setActiveAccount, loading } = useAccount()
@@ -208,11 +210,7 @@ export default function Sidebar() {
       {/* User */}
       <div className="px-3 py-3 border-t border-border">
         <div className="flex items-center gap-3 px-3 py-2 rounded-lg bg-surface mb-1">
-          <div className="w-6 h-6 rounded-full bg-accent/30 flex items-center justify-center flex-shrink-0">
-            <span className="text-accent text-xs font-semibold">
-              {user?.email?.[0]?.toUpperCase() ?? 'T'}
-            </span>
-          </div>
+          <ProfileAvatar />
           <span className="text-text-muted text-xs truncate flex-1">{user?.email}</span>
         </div>
         <button
