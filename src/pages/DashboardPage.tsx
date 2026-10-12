@@ -1,5 +1,9 @@
-import { useState, useEffect } from 'react'
-import { Upload, GripVertical, LayoutGrid, Check, ArrowUp, ArrowDown, EyeOff } from 'lucide-react'
+import { useState, useEffect, useRef, useCallback } from 'react'
+import { Upload, GripVertical, LayoutGrid, Check, EyeOff } from 'lucide-react'
+import RGL, { type Layout, type Layouts } from 'react-grid-layout'
+import 'react-grid-layout/css/styles.css'
+import 'react-resizable/css/styles.css'
+import { createDashboardLayout, loadDashboardLayout, mergeVisibleLayouts, GRID_COLS, GRID_BREAKPOINTS, GRID_STORAGE_KEY } from '../lib/dashboard-layout'
 import type { DbGoal } from '../types'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
@@ -34,67 +38,14 @@ const SECTION_META: Record<SectionId, { label: string; subtitle: string }> = {
   forecast: { label: 'Forecast',           subtitle: 'Projected period-end P&L based on your avg daily' },
 }
 
-type WidgetWidth = 'half' | 'full'
-type WidgetHeight = 1 | 2 | 3 | 4
-type DashboardWidget = { id: SectionId; width: WidgetWidth; height: WidgetHeight; visible: boolean }
-const DEFAULT_HEIGHTS: Record<SectionId, WidgetHeight> = {
-  coaching: 1, streak: 1, goals: 2, forecast: 2, stats: 2,
-  charts: 3, recent: 3, weekly: 3, calendar: 4,
+// Pixel minima protect legibility; heights are measured from live content.
+const MIN_WIDGET_WIDTH: Record<SectionId, number> = {
+  coaching: 300, streak: 250, stats: 300, charts: 340,
+  goals: 460, forecast: 360, recent: 700, weekly: 760, calendar: 560,
 }
 
-// Place each tile in the first available cells, allowing short tiles to stack
-// alongside tall ones. A row is 160px with a 20px gap: 160 / 340 / 520 / 700.
-function placeWidgets(widgets: DashboardWidget[]) {
-  const occupied: boolean[][] = []
-  return widgets.map(widget => {
-    const columns = widget.width === 'full' ? 2 : 1
-    for (let row = 0; ; row++) {
-      for (let column = 0; column <= 2 - columns; column++) {
-        let fits = true
-        for (let y = row; y < row + widget.height; y++) {
-          for (let x = column; x < column + columns; x++) {
-            if (occupied[y]?.[x]) fits = false
-          }
-        }
-        if (!fits) continue
-        for (let y = row; y < row + widget.height; y++) {
-          occupied[y] ??= [false, false]
-          for (let x = column; x < column + columns; x++) occupied[y][x] = true
-        }
-        return { row: row + 1, column: column + 1 }
-      }
-    }
-  })
-}
-const DEFAULT_ORDER: SectionId[] = ['stats', 'charts', 'coaching', 'streak', 'goals', 'forecast', 'weekly', 'recent', 'calendar']
-const DEFAULT_WIDGETS: DashboardWidget[] = DEFAULT_ORDER.map(id => ({
-  id, height: DEFAULT_HEIGHTS[id], width: ['coaching', 'streak', 'goals', 'forecast'].includes(id) ? 'half' : 'full', visible: true,
-}))
-const LAYOUT_STORAGE_KEY = 'ttt_dashboard_widgets_v2'
-
-function loadWidgets(): DashboardWidget[] {
-  try {
-    const parsed: unknown = JSON.parse(localStorage.getItem(LAYOUT_STORAGE_KEY) ?? 'null')
-    if (Array.isArray(parsed) && parsed.length === DEFAULT_WIDGETS.length &&
-      new Set(parsed.map(w => w?.id)).size === DEFAULT_WIDGETS.length &&
-      parsed.every(w => w && DEFAULT_ORDER.includes(w.id) &&
-        ['half', 'full'].includes(w.width) && typeof w.visible === 'boolean' &&
-        (w.height === undefined || [1, 2, 3, 4].includes(w.height)))) {
-      return parsed.map(w => ({ ...w, height: w.id === 'charts' ? Math.max(2, w.height ?? DEFAULT_HEIGHTS.charts) as WidgetHeight : w.height ?? DEFAULT_HEIGHTS[w.id as SectionId] }))
-    }
-    // Keep the order and widths of layouts saved with the previous grid editor.
-    const legacy: unknown = JSON.parse(localStorage.getItem('ttt_dashboard_layout') ?? 'null')
-    if (Array.isArray(legacy) && legacy.length === DEFAULT_WIDGETS.length &&
-      new Set(legacy.map(w => w?.i)).size === DEFAULT_WIDGETS.length &&
-      legacy.every(w => w && DEFAULT_ORDER.includes(w.i) &&
-        [w.x, w.y, w.w].every(Number.isFinite))) {
-      return [...legacy].sort((a, b) => a.y - b.y || a.x - b.x).map(w => ({
-        id: w.i, height: DEFAULT_HEIGHTS[w.i as SectionId], width: w.w <= 2 ? 'half' : 'full', visible: true,
-      }))
-    }
-  } catch { /* Use defaults if storage is unavailable or invalid. */ }
-  return DEFAULT_WIDGETS
-}
+// The installed v1 package attaches Responsive to its CommonJS default export.
+const ResponsiveGrid = RGL.Responsive
 
 export default function DashboardPage() {
   const { user } = useAuth()
@@ -106,9 +57,13 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true)
   const [allLoading, setAllLoading] = useState(true)
   const [goalsLoading, setGoalsLoading] = useState(true)
-  const [widgets, setWidgets] = useState<DashboardWidget[]>(loadWidgets)
-  const [draggedId, setDraggedId] = useState<SectionId | null>(null)
-  const [dropId, setDropId] = useState<SectionId | null>(null)
+  const [dashboardLayout, setDashboardLayout] = useState(loadDashboardLayout)
+  const [breakpoint, setBreakpoint] = useState('lg')
+  const [gridVersion, setGridVersion] = useState(0)
+  const gridContainer = useRef<HTMLDivElement>(null)
+  const [gridWidth, setGridWidth] = useState(0)
+  const [contentHeights, setContentHeights] = useState<Record<string, number>>({})
+  const [contentWidths, setContentWidths] = useState<Record<string, number>>({})
   const [saveError, setSaveError] = useState(false)
   const [announcement, setAnnouncement] = useState('')
   const [editMode, setEditMode] = useState(false)
@@ -170,31 +125,113 @@ export default function DashboardPage() {
   const hasAnyTrades = allTrades.length > 0
 
   useEffect(() => {
+    const container = gridContainer.current
+    if (!container) return
+    const observer = new ResizeObserver(entries => {
+      const width = entries[0].contentRect.width
+      setGridWidth(width)
+      setBreakpoint(width > GRID_BREAKPOINTS.lg ? 'lg' : width > GRID_BREAKPOINTS.md ? 'md' : 'sm')
+    })
+    observer.observe(container)
+    return () => observer.disconnect()
+  }, [])
+
+  useEffect(() => {
+    const container = gridContainer.current
+    if (!container || !gridWidth) return
+    let frame = 0
+    const measure = () => {
+      cancelAnimationFrame(frame)
+      frame = requestAnimationFrame(() => {
+        const next: Record<string, number> = {}
+        const widths: Record<string, number> = {}
+        container.querySelectorAll<HTMLElement>('[data-dashboard-widget]').forEach(section => {
+          const id = section.dataset.dashboardWidget!
+          const header = section.querySelector<HTMLElement>('[data-widget-header]')!
+          const content = section.querySelector<HTMLElement>('[data-widget-natural-content]')!
+          // Charts fill the tile; measure their readable minimum, not allocated height.
+          const contentHeight = id === 'charts' ? 300 : content.getBoundingClientRect().height
+          let width = MIN_WIDGET_WIDTH[id as SectionId]
+          content.querySelectorAll('table').forEach(table => {
+            // Measure intrinsic column widths without changing the live table.
+            const probe = table.cloneNode(true) as HTMLTableElement
+            Object.assign(probe.style, { position: 'absolute', visibility: 'hidden', pointerEvents: 'none', width: 'min-content' })
+            table.parentElement!.appendChild(probe)
+            width = Math.max(width, Math.ceil(probe.getBoundingClientRect().width) + 26)
+            probe.remove()
+          })
+          widths[id] = width
+          next[id] = Math.ceil(header.getBoundingClientRect().height + contentHeight + 24 + 12 + 2)
+        })
+        setContentWidths(previous => JSON.stringify(previous) === JSON.stringify(widths) ? previous : widths)
+        setContentHeights(previous => JSON.stringify(previous) === JSON.stringify(next) ? previous : next)
+      })
+    }
+    const observer = new ResizeObserver(measure)
+    container.querySelectorAll('[data-widget-header], [data-widget-natural-content]').forEach(node => observer.observe(node))
+    measure()
+    return () => { cancelAnimationFrame(frame); observer.disconnect() }
+  }, [gridWidth, breakpoint, editMode, dashboardLayout.hidden.join(','), gridVersion])
+
+  function widgetMinimum(id: string) {
+    const cols = GRID_COLS[breakpoint]
+    const columnWidth = (gridWidth - 16 * (cols - 1)) / cols
+    return {
+      minW: Math.min(cols, Math.max(1, Math.ceil(((contentWidths[id] ?? MIN_WIDGET_WIDTH[id as SectionId]) + 16) / (columnWidth + 16)))),
+      minH: Math.max(1, Math.ceil(((contentHeights[id] ?? 120) + 16) / 36)),
+    }
+  }
+
+  useEffect(() => {
     try {
-      localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify(widgets))
+      localStorage.setItem(GRID_STORAGE_KEY, JSON.stringify(dashboardLayout))
       setSaveError(false)
     } catch { setSaveError(true) }
-  }, [widgets])
+  }, [dashboardLayout])
 
-  function updateWidget(id: SectionId, update: Partial<DashboardWidget>) {
-    setWidgets(previous => previous.map(widget => widget.id === id ? { ...widget, ...update } : widget))
-  }
-
-  function moveWidget(id: SectionId, targetId: SectionId) {
-    if (id === targetId) return
-    setWidgets(previous => {
-      const next = [...previous]
-      const source = next.findIndex(w => w.id === id)
-      const target = next.findIndex(w => w.id === targetId)
-      const [widget] = next.splice(source, 1)
-      next.splice(target, 0, widget)
-      return next
+  const handleLayoutChange = useCallback((_current: Layout[], layouts: Layouts) => {
+    setDashboardLayout(previous => {
+      const next = mergeVisibleLayouts(previous, layouts)
+      return JSON.stringify(previous) === JSON.stringify(next) ? previous : next
     })
-    setAnnouncement(`${SECTION_META[id].label} moved`)
+  }, [])
+
+  function setWidgetVisible(id: SectionId, visible: boolean) {
+    setDashboardLayout(previous => ({ ...previous,
+      hidden: visible ? previous.hidden.filter(item => item !== id) : [...new Set([...previous.hidden, id])],
+    }))
   }
 
-  const visibleWidgets = widgets.filter(widget => widget.visible)
-  const placements = placeWidgets(visibleWidgets)
+  function adjustWidget(id: SectionId, key: string, resize: boolean) {
+    setDashboardLayout(previous => ({ ...previous, layouts: { ...previous.layouts,
+      [breakpoint]: previous.layouts[breakpoint].map(item => {
+        if (item.i !== id) return item
+        const next = { ...item }
+        if (resize) {
+          if (key === 'ArrowLeft') next.w = Math.max(widgetMinimum(id).minW, item.w - 1)
+          if (key === 'ArrowRight') next.w = Math.min(GRID_COLS[breakpoint] - item.x, item.w + 1)
+          if (key === 'ArrowUp') next.h = Math.max(widgetMinimum(id).minH, item.h - 1)
+          if (key === 'ArrowDown') next.h = item.h + 1
+        } else {
+          if (key === 'ArrowLeft') next.x = Math.max(0, item.x - 1)
+          if (key === 'ArrowRight') next.x = Math.min(GRID_COLS[breakpoint] - item.w, item.x + 1)
+          if (key === 'ArrowUp') next.y = Math.max(0, item.y - 1)
+          if (key === 'ArrowDown') next.y = item.y + 1
+        }
+        return next
+      }),
+    }}))
+    setAnnouncement(`${SECTION_META[id].label} ${resize ? 'resized' : 'moved'}`)
+  }
+
+  const visibleWidgets = Object.keys(SECTION_META).filter(id => !dashboardLayout.hidden.includes(id)) as SectionId[]
+  const visibleLayouts = Object.fromEntries(Object.entries(dashboardLayout.layouts).map(([name, layout]) =>
+    [name, layout.filter(item => !dashboardLayout.hidden.includes(item.i)).map(item => {
+      if (name !== breakpoint) return item
+      const { minW, minH } = widgetMinimum(item.i)
+      const w = Math.max(item.w, minW)
+      return { ...item, minW, minH, w, h: Math.max(item.h, minH), x: Math.min(item.x, GRID_COLS[name] - w) }
+    })]))
 
   function renderContent(id: SectionId) {
     switch (id) {
@@ -246,7 +283,7 @@ export default function DashboardPage() {
         <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           {editMode && (
             <button
-              onClick={() => { setWidgets(DEFAULT_WIDGETS); setAnnouncement('Default layout restored') }}
+              onClick={() => { setDashboardLayout(createDashboardLayout()); setGridVersion(v => v + 1); setAnnouncement('Default layout restored') }}
               className="text-text-dim hover:text-text-muted text-xs font-medium transition-colors"
             >
               Reset layout
@@ -254,7 +291,7 @@ export default function DashboardPage() {
           )}
           <DateFilter value={dateRange} onChange={setDateRange} />
           <button
-              onClick={() => { setEditMode(v => !v); setDraggedId(null); setDropId(null) }}
+              onClick={() => { setEditMode(v => !v) }}
               aria-pressed={editMode}
               className={`flex items-center gap-2 rounded-lg px-3.5 py-2 text-sm font-medium transition-all ${
                 editMode
@@ -303,12 +340,12 @@ export default function DashboardPage() {
               {saveError ? 'Changes apply now, but could not be saved in this browser.' : 'Layout saves automatically in this browser.'}
             </p>
           </div>
-          <p className="text-xs text-text-muted">Choose width and height for each widget. Short widgets stack beside taller ones. On smaller screens, widgets expand to fit their content.</p>
+          <p className="text-xs text-text-muted">Drag a grip to move a widget and drag its bottom-right corner to resize. Focus a grip and use arrow keys to move, or Shift + arrows to resize. Widgets stop shrinking at the size needed to display their content. Each screen size saves its own layout.</p>
           <div className="flex flex-wrap gap-2">
-            {widgets.map(widget => (
-              <label key={widget.id} className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-xs cursor-pointer ${widget.visible ? 'border-accent/30 bg-accent/10 text-text-primary' : 'border-border text-text-muted'}`}>
-                <input type="checkbox" checked={widget.visible} onChange={event => updateWidget(widget.id, { visible: event.target.checked })} className="accent-accent" />
-                {SECTION_META[widget.id].label}
+            {Object.entries(SECTION_META).map(([id, meta]) => (
+              <label key={id} className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-xs cursor-pointer ${!dashboardLayout.hidden.includes(id) ? 'border-accent/30 bg-accent/10 text-text-primary' : 'border-border text-text-muted'}`}>
+                <input type="checkbox" checked={!dashboardLayout.hidden.includes(id)} onChange={event => setWidgetVisible(id as SectionId, event.target.checked)} className="accent-accent" />
+                {meta.label}
               </label>
             ))}
           </div>
@@ -319,46 +356,47 @@ export default function DashboardPage() {
           All widgets are hidden. <button onClick={() => setEditMode(true)} className="text-accent hover:underline">Choose widgets</button> to build your dashboard.
         </div>
       )}
-      <div className="dashboard-widget-grid grid grid-cols-1 xl:grid-cols-2 gap-5">
-        {visibleWidgets.map((widget, index) => {
-          const { id } = widget
+      <div ref={gridContainer}>
+        {gridWidth > 0 && (
+        <ResponsiveGrid
+          key={gridVersion}
+          className="dashboard-grid"
+          width={gridWidth}
+          layouts={visibleLayouts}
+          breakpoints={GRID_BREAKPOINTS}
+          cols={GRID_COLS}
+          rowHeight={20}
+          margin={[16, 16]}
+          containerPadding={[0, 0]}
+          isDraggable={editMode}
+          isResizable={editMode}
+          draggableHandle=".dashboard-drag-handle"
+          resizeHandles={['se']}
+          compactType="vertical"
+          onLayoutChange={handleLayoutChange}
+          onBreakpointChange={setBreakpoint}
+        >
+        {visibleWidgets.map(id => {
           const { label, subtitle } = SECTION_META[id]
           return (
+            <div key={id}>
             <section
-              key={id}
+              data-dashboard-widget={id}
               aria-labelledby={`widget-${id}`}
-              style={{
-                '--widget-row': `${placements[index].row} / span ${widget.height}`,
-                '--widget-column': `${placements[index].column} / span ${widget.width === 'full' ? 2 : 1}`,
-              } as React.CSSProperties}
-              onDragOver={event => {
-                if (!editMode || !draggedId || draggedId === id) return
-                event.preventDefault()
-                event.dataTransfer.dropEffect = 'move'
-                setDropId(id)
-              }}
-              onDrop={event => {
-                event.preventDefault()
-                if (editMode && draggedId) moveWidget(draggedId, id)
-                setDraggedId(null)
-                setDropId(null)
-              }}
-              className={`dashboard-widget @container min-w-0 min-h-0 flex flex-col gap-3 rounded-xl p-3 border bg-surface/30 ${editMode ? 'border-dashed border-accent/30' : 'border-border'} ${dropId === id ? 'ring-2 ring-accent' : ''} ${draggedId === id ? 'opacity-50' : ''}`}
+              className={`@container h-full min-w-0 min-h-0 flex flex-col gap-3 rounded-xl p-3 border bg-surface/30 ${editMode ? 'border-dashed border-accent/30' : 'border-border'}`}
             >
-              <div className="flex flex-wrap items-center justify-between gap-2 flex-shrink-0">
+              <div data-widget-header className="flex flex-wrap items-center justify-between gap-2 flex-shrink-0">
                 <div className="flex items-center gap-2 min-w-0">
                   {editMode && (
                     <button
-                      draggable
-                      onDragStart={event => {
-                        event.dataTransfer.setData('text/plain', id)
-                        event.dataTransfer.effectAllowed = 'move'
-                        setDraggedId(id)
+                      onKeyDown={event => {
+                        if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) return
+                        event.preventDefault()
+                        adjustWidget(id, event.key, event.shiftKey)
                       }}
-                      onDragEnd={() => { setDraggedId(null); setDropId(null) }}
                       title={`Drag to reposition ${label}`}
-                      aria-label={`Drag to reposition ${label}; alternatively use the move buttons`}
-                      className="p-1.5 rounded-md text-text-muted hover:bg-hover cursor-grab active:cursor-grabbing"
+                      aria-label={`Drag to reposition ${label}; use arrow keys to move or Shift plus arrows to resize`}
+                      className="dashboard-drag-handle touch-none p-1.5 rounded-md text-text-muted hover:bg-hover cursor-grab active:cursor-grabbing"
                     ><GripVertical className="w-4 h-4" /></button>
                   )}
                   <div className="min-w-0">
@@ -368,26 +406,17 @@ export default function DashboardPage() {
                 </div>
                 {editMode && (
                   <div className="flex flex-wrap items-center gap-1">
-                    <button disabled={index === 0} onClick={() => moveWidget(id, visibleWidgets[index - 1].id)} aria-label={`Move ${label} earlier`} title="Move earlier" className="p-2 rounded-md text-text-muted hover:bg-hover disabled:opacity-30"><ArrowUp className="w-4 h-4" /></button>
-                    <button disabled={index === visibleWidgets.length - 1} onClick={() => moveWidget(id, visibleWidgets[index + 1].id)} aria-label={`Move ${label} later`} title="Move later" className="p-2 rounded-md text-text-muted hover:bg-hover disabled:opacity-30"><ArrowDown className="w-4 h-4" /></button>
-                    <select aria-label={`${label} width`} value={widget.width} onChange={event => updateWidget(id, { width: event.target.value as WidgetWidth })} className="bg-deep border border-border rounded-md px-2 py-1.5 text-xs text-text-muted">
-                      <option value="half">Half width</option>
-                      <option value="full">Full width</option>
-                    </select>
-                    <select aria-label={`${label} height`} value={widget.height} onChange={event => updateWidget(id, { height: Number(event.target.value) as WidgetHeight })} className="bg-deep border border-border rounded-md px-2 py-1.5 text-xs text-text-muted">
-                      <option value={1} disabled={id === 'charts'}>Compact (1 row)</option>
-                      <option value={2}>Medium (2 rows)</option>
-                      <option value={3}>Tall (3 rows)</option>
-                      <option value={4}>Large (4 rows)</option>
-                    </select>
-                    <button onClick={() => updateWidget(id, { visible: false })} aria-label={`Hide ${label}`} title={`Hide ${label}`} className="p-2 rounded-md text-text-muted hover:bg-hover"><EyeOff className="w-4 h-4" /></button>
+                    <button onClick={() => setWidgetVisible(id, false)} aria-label={`Hide ${label}`} title={`Hide ${label}`} className="p-2 rounded-md text-text-muted hover:bg-hover"><EyeOff className="w-4 h-4" /></button>
                   </div>
                 )}
               </div>
-              <div className={`dashboard-widget-content min-w-0 min-h-0 flex-1 ${id === 'charts' ? 'dashboard-widget-charts' : ''}`} tabIndex={0} role="region" aria-label={`${label} content`}>{renderContent(id)}</div>
+              <div className={`dashboard-widget-content overflow-auto min-w-0 min-h-0 flex-1 ${id === 'charts' ? 'dashboard-widget-charts' : ''}`} tabIndex={0} role="region" aria-label={`${label} content`}><div data-widget-natural-content className={id === 'charts' ? 'h-full' : ''}>{renderContent(id)}</div></div>
             </section>
+            </div>
           )
         })}
+        </ResponsiveGrid>
+        )}
       </div>
     </div>
   )
