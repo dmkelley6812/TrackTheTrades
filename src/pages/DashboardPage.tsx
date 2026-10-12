@@ -35,10 +35,40 @@ const SECTION_META: Record<SectionId, { label: string; subtitle: string }> = {
 }
 
 type WidgetWidth = 'half' | 'full'
-type DashboardWidget = { id: SectionId; width: WidgetWidth; visible: boolean }
+type WidgetHeight = 1 | 2 | 3 | 4
+type DashboardWidget = { id: SectionId; width: WidgetWidth; height: WidgetHeight; visible: boolean }
+const DEFAULT_HEIGHTS: Record<SectionId, WidgetHeight> = {
+  coaching: 1, streak: 1, goals: 2, forecast: 2, stats: 2,
+  charts: 3, recent: 3, weekly: 3, calendar: 4,
+}
+
+// Place each tile in the first available cells, allowing short tiles to stack
+// alongside tall ones. A row is 160px with a 20px gap: 160 / 340 / 520 / 700.
+function placeWidgets(widgets: DashboardWidget[]) {
+  const occupied: boolean[][] = []
+  return widgets.map(widget => {
+    const columns = widget.width === 'full' ? 2 : 1
+    for (let row = 0; ; row++) {
+      for (let column = 0; column <= 2 - columns; column++) {
+        let fits = true
+        for (let y = row; y < row + widget.height; y++) {
+          for (let x = column; x < column + columns; x++) {
+            if (occupied[y]?.[x]) fits = false
+          }
+        }
+        if (!fits) continue
+        for (let y = row; y < row + widget.height; y++) {
+          occupied[y] ??= [false, false]
+          for (let x = column; x < column + columns; x++) occupied[y][x] = true
+        }
+        return { row: row + 1, column: column + 1 }
+      }
+    }
+  })
+}
 const DEFAULT_ORDER: SectionId[] = ['stats', 'charts', 'coaching', 'streak', 'goals', 'forecast', 'weekly', 'recent', 'calendar']
 const DEFAULT_WIDGETS: DashboardWidget[] = DEFAULT_ORDER.map(id => ({
-  id, width: ['coaching', 'streak', 'goals', 'forecast'].includes(id) ? 'half' : 'full', visible: true,
+  id, height: DEFAULT_HEIGHTS[id], width: ['coaching', 'streak', 'goals', 'forecast'].includes(id) ? 'half' : 'full', visible: true,
 }))
 const LAYOUT_STORAGE_KEY = 'ttt_dashboard_widgets_v2'
 
@@ -48,7 +78,10 @@ function loadWidgets(): DashboardWidget[] {
     if (Array.isArray(parsed) && parsed.length === DEFAULT_WIDGETS.length &&
       new Set(parsed.map(w => w?.id)).size === DEFAULT_WIDGETS.length &&
       parsed.every(w => w && DEFAULT_ORDER.includes(w.id) &&
-        ['half', 'full'].includes(w.width) && typeof w.visible === 'boolean')) return parsed
+        ['half', 'full'].includes(w.width) && typeof w.visible === 'boolean' &&
+        (w.height === undefined || [1, 2, 3, 4].includes(w.height)))) {
+      return parsed.map(w => ({ ...w, height: w.id === 'charts' ? Math.max(2, w.height ?? DEFAULT_HEIGHTS.charts) as WidgetHeight : w.height ?? DEFAULT_HEIGHTS[w.id as SectionId] }))
+    }
     // Keep the order and widths of layouts saved with the previous grid editor.
     const legacy: unknown = JSON.parse(localStorage.getItem('ttt_dashboard_layout') ?? 'null')
     if (Array.isArray(legacy) && legacy.length === DEFAULT_WIDGETS.length &&
@@ -56,7 +89,7 @@ function loadWidgets(): DashboardWidget[] {
       legacy.every(w => w && DEFAULT_ORDER.includes(w.i) &&
         [w.x, w.y, w.w].every(Number.isFinite))) {
       return [...legacy].sort((a, b) => a.y - b.y || a.x - b.x).map(w => ({
-        id: w.i, width: w.w <= 2 ? 'half' : 'full', visible: true,
+        id: w.i, height: DEFAULT_HEIGHTS[w.i as SectionId], width: w.w <= 2 ? 'half' : 'full', visible: true,
       }))
     }
   } catch { /* Use defaults if storage is unavailable or invalid. */ }
@@ -161,6 +194,7 @@ export default function DashboardPage() {
   }
 
   const visibleWidgets = widgets.filter(widget => widget.visible)
+  const placements = placeWidgets(visibleWidgets)
 
   function renderContent(id: SectionId) {
     switch (id) {
@@ -179,9 +213,9 @@ export default function DashboardPage() {
         return <StatsCards stats={stats} loading={loading} />
       case 'charts':
         return (
-          <div className="grid grid-cols-1 @2xl:grid-cols-2 gap-4">
-            <EquityCurve data={cumulativePnl} loading={loading} />
-            <DailyBars data={dailyPnl} loading={loading} />
+          <div className="dashboard-charts grid h-full min-h-0 grid-cols-1 @2xl:grid-cols-2 grid-rows-2 @2xl:grid-rows-1 gap-4">
+            <EquityCurve data={cumulativePnl} loading={loading} fill />
+            <DailyBars data={dailyPnl} loading={loading} fill />
           </div>
         )
       case 'recent':
@@ -269,7 +303,7 @@ export default function DashboardPage() {
               {saveError ? 'Changes apply now, but could not be saved in this browser.' : 'Layout saves automatically in this browser.'}
             </p>
           </div>
-          <p className="text-xs text-text-muted">Choose visible widgets below. Half-width widgets expand to full width on smaller screens.</p>
+          <p className="text-xs text-text-muted">Choose width and height for each widget. Short widgets stack beside taller ones. On smaller screens, widgets expand to fit their content.</p>
           <div className="flex flex-wrap gap-2">
             {widgets.map(widget => (
               <label key={widget.id} className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-xs cursor-pointer ${widget.visible ? 'border-accent/30 bg-accent/10 text-text-primary' : 'border-border text-text-muted'}`}>
@@ -285,7 +319,7 @@ export default function DashboardPage() {
           All widgets are hidden. <button onClick={() => setEditMode(true)} className="text-accent hover:underline">Choose widgets</button> to build your dashboard.
         </div>
       )}
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-5 items-start">
+      <div className="dashboard-widget-grid grid grid-cols-1 xl:grid-cols-2 gap-5">
         {visibleWidgets.map((widget, index) => {
           const { id } = widget
           const { label, subtitle } = SECTION_META[id]
@@ -293,6 +327,10 @@ export default function DashboardPage() {
             <section
               key={id}
               aria-labelledby={`widget-${id}`}
+              style={{
+                '--widget-row': `${placements[index].row} / span ${widget.height}`,
+                '--widget-column': `${placements[index].column} / span ${widget.width === 'full' ? 2 : 1}`,
+              } as React.CSSProperties}
               onDragOver={event => {
                 if (!editMode || !draggedId || draggedId === id) return
                 event.preventDefault()
@@ -305,9 +343,9 @@ export default function DashboardPage() {
                 setDraggedId(null)
                 setDropId(null)
               }}
-              className={`@container min-w-0 space-y-3 rounded-xl ${widget.width === 'full' ? 'xl:col-span-2' : ''} ${editMode ? 'p-3 border border-dashed border-accent/30 bg-surface/30' : ''} ${dropId === id ? 'ring-2 ring-accent' : ''} ${draggedId === id ? 'opacity-50' : ''}`}
+              className={`dashboard-widget @container min-w-0 min-h-0 flex flex-col gap-3 rounded-xl p-3 border bg-surface/30 ${editMode ? 'border-dashed border-accent/30' : 'border-border'} ${dropId === id ? 'ring-2 ring-accent' : ''} ${draggedId === id ? 'opacity-50' : ''}`}
             >
-              <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex flex-wrap items-center justify-between gap-2 flex-shrink-0">
                 <div className="flex items-center gap-2 min-w-0">
                   {editMode && (
                     <button
@@ -336,11 +374,17 @@ export default function DashboardPage() {
                       <option value="half">Half width</option>
                       <option value="full">Full width</option>
                     </select>
+                    <select aria-label={`${label} height`} value={widget.height} onChange={event => updateWidget(id, { height: Number(event.target.value) as WidgetHeight })} className="bg-deep border border-border rounded-md px-2 py-1.5 text-xs text-text-muted">
+                      <option value={1} disabled={id === 'charts'}>Compact (1 row)</option>
+                      <option value={2}>Medium (2 rows)</option>
+                      <option value={3}>Tall (3 rows)</option>
+                      <option value={4}>Large (4 rows)</option>
+                    </select>
                     <button onClick={() => updateWidget(id, { visible: false })} aria-label={`Hide ${label}`} title={`Hide ${label}`} className="p-2 rounded-md text-text-muted hover:bg-hover"><EyeOff className="w-4 h-4" /></button>
                   </div>
                 )}
               </div>
-              <div className="min-w-0">{renderContent(id)}</div>
+              <div className={`dashboard-widget-content min-w-0 min-h-0 flex-1 ${id === 'charts' ? 'dashboard-widget-charts' : ''}`} tabIndex={0} role="region" aria-label={`${label} content`}>{renderContent(id)}</div>
             </section>
           )
         })}

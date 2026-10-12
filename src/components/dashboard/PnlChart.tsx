@@ -40,7 +40,7 @@ function DailyTooltip({ active, payload, label }: {
 
 // ─── Equity Curve ─────────────────────────────────────────────────────────────
 
-export function EquityCurve({ data, loading }: { data: CumulativePnl[]; loading: boolean }) {
+export function EquityCurve({ data, loading, fill = false }: { data: CumulativePnl[]; loading: boolean; fill?: boolean }) {
   const isPositive = (data[data.length - 1]?.cumulative ?? 0) >= 0
   const color = isPositive ? '#22d984' : '#f14b4b'
 
@@ -50,16 +50,17 @@ export function EquityCurve({ data, loading }: { data: CumulativePnl[]; loading:
   }))
 
   return (
-    <div className="bg-surface border border-border rounded-xl p-4 shadow-card">
-      <h3 className="text-text-muted text-xs font-medium uppercase tracking-wider mb-4">Equity Curve</h3>
+    <div className={`bg-surface border border-border rounded-xl p-4 shadow-card ${fill ? 'h-full min-h-0 flex flex-col' : ''}`}>
+      <h3 className="text-text-muted text-xs font-medium uppercase tracking-wider mb-4 flex-shrink-0">Equity Curve</h3>
+      <div className={fill ? 'flex-1 min-h-0' : 'h-[200px]'}>
       {loading ? (
-        <div className="h-48 bg-hover rounded-lg animate-pulse" />
+        <div className="h-full bg-hover rounded-lg animate-pulse" />
       ) : data.length === 0 ? (
-        <div className="h-48 flex items-center justify-center text-text-dim text-sm">
+        <div className="h-full flex items-center justify-center text-text-dim text-sm">
           No trade data for this period
         </div>
       ) : (
-        <ResponsiveContainer width="100%" height={200}>
+        <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={formatted} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
             <defs>
               <linearGradient id="equityGrad" x1="0" y1="0" x2="0" y2="1">
@@ -96,29 +97,31 @@ export function EquityCurve({ data, loading }: { data: CumulativePnl[]; loading:
           </AreaChart>
         </ResponsiveContainer>
       )}
+      </div>
     </div>
   )
 }
 
 // ─── Daily P&L Bars ───────────────────────────────────────────────────────────
 
-export function DailyBars({ data, loading }: { data: DailyPnl[]; loading: boolean }) {
+export function DailyBars({ data, loading, fill = false }: { data: DailyPnl[]; loading: boolean; fill?: boolean }) {
   const formatted = data.map(d => ({
     ...d,
     date: format(new Date(d.date + 'T00:00:00'), 'MMM d'),
   }))
 
   return (
-    <div className="bg-surface border border-border rounded-xl p-4 shadow-card">
-      <h3 className="text-text-muted text-xs font-medium uppercase tracking-wider mb-4">Daily P&L</h3>
+    <div className={`bg-surface border border-border rounded-xl p-4 shadow-card ${fill ? 'h-full min-h-0 flex flex-col' : ''}`}>
+      <h3 className="text-text-muted text-xs font-medium uppercase tracking-wider mb-4 flex-shrink-0">Daily P&L</h3>
+      <div className={fill ? 'flex-1 min-h-0' : 'h-[200px]'}>
       {loading ? (
-        <div className="h-48 bg-hover rounded-lg animate-pulse" />
+        <div className="h-full bg-hover rounded-lg animate-pulse" />
       ) : data.length === 0 ? (
-        <div className="h-48 flex items-center justify-center text-text-dim text-sm">
+        <div className="h-full flex items-center justify-center text-text-dim text-sm">
           No trade data for this period
         </div>
       ) : (
-        <ResponsiveContainer width="100%" height={200}>
+        <ResponsiveContainer width="100%" height="100%">
           <BarChart data={formatted} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#1e2138" vertical={false} />
             <XAxis
@@ -145,6 +148,7 @@ export function DailyBars({ data, loading }: { data: DailyPnl[]; loading: boolea
           </BarChart>
         </ResponsiveContainer>
       )}
+      </div>
     </div>
   )
 }
