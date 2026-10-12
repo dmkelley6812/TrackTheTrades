@@ -1,8 +1,6 @@
-import { useState, useEffect, useCallback } from 'react'
-import { Upload, GripVertical, LayoutGrid, Check } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Upload, GripVertical, LayoutGrid, Check, ArrowUp, ArrowDown, EyeOff } from 'lucide-react'
 import type { DbGoal } from '../types'
-import RGL, { type Layout } from 'react-grid-layout'
-import 'react-grid-layout/css/styles.css'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { getDateRange, computeStats, computeDailyPnl, computeCumulativePnl, computeWeeklyStats, formatLocalDate } from '../lib/utils'
@@ -22,14 +20,6 @@ import CoachingBanner from '../components/coaching/CoachingBanner'
 import { useCoachingSettings } from '../hooks/useCoachingSettings'
 import { useCoachingCues } from '../hooks/useCoachingCues'
 
-// Access WidthProvider off the default export at runtime (not as a named import) —
-// Vite's dev-server dependency pre-bundling (esbuild) only synthesizes a `default`
-// export for this package since WidthProvider is attached dynamically
-// (`module.exports.WidthProvider = ...`), not as a statically analyzable named export.
-const GridLayout = RGL.WidthProvider(RGL)
-
-// ─── Section definitions ──────────────────────────────────────────────────────
-
 type SectionId = 'coaching' | 'streak' | 'stats' | 'charts' | 'recent' | 'calendar' | 'weekly' | 'goals' | 'forecast'
 
 const SECTION_META: Record<SectionId, { label: string; subtitle: string }> = {
@@ -44,142 +34,38 @@ const SECTION_META: Record<SectionId, { label: string; subtitle: string }> = {
   forecast: { label: 'Forecast',           subtitle: 'Projected period-end P&L based on your avg daily' },
 }
 
-const DEFAULT_ORDER: SectionId[] = ['coaching', 'streak', 'goals', 'forecast', 'stats', 'charts', 'weekly', 'recent', 'calendar']
+type WidgetWidth = 'half' | 'full'
+type DashboardWidget = { id: SectionId; width: WidgetWidth; visible: boolean }
+const DEFAULT_ORDER: SectionId[] = ['stats', 'charts', 'coaching', 'streak', 'goals', 'forecast', 'weekly', 'recent', 'calendar']
+const DEFAULT_WIDGETS: DashboardWidget[] = DEFAULT_ORDER.map(id => ({
+  id, width: ['coaching', 'streak', 'goals', 'forecast'].includes(id) ? 'half' : 'full', visible: true,
+}))
+const LAYOUT_STORAGE_KEY = 'ttt_dashboard_widgets_v2'
 
-// ─── Grid layout (react-grid-layout) ──────────────────────────────────────────
-
-type WidgetSize = 'sm' | 'md' | 'lg'
-
-const SIZE_LABEL: Record<WidgetSize, string> = { sm: 'S', md: 'M', lg: 'L' }
-const SIZE_W: Record<WidgetSize, number> = { sm: 1, md: 2, lg: 4 }
-
-function sizeFromW(w: number): WidgetSize {
-  return w <= 1 ? 'sm' : w <= 2 ? 'md' : 'lg'
-}
-
-const COLS = 4
-const ROW_HEIGHT = 10
-const MARGIN: [number, number] = [16, 16]
-
-// Fixed row-height per widget (content is effectively bounded for all of these —
-// capped lists, fixed chart heights, max 3 coaching cues, etc.) — best-effort
-// estimates; the GridWidget wrapper below has overflow-y-auto as a safety net.
-const WIDGET_H: Record<SectionId, number> = {
-  coaching: 12,
-  streak:   7,
-  goals:    15,
-  forecast: 13,
-  stats:    10,
-  charts:   12,
-  weekly:   23,
-  recent:   19,
-  calendar: 21,
-}
-
-const DEFAULT_LAYOUT: Layout[] = [
-  { i: 'coaching', x: 0, y: 0,   w: 4, h: WIDGET_H.coaching },
-  { i: 'streak',   x: 0, y: 12,  w: 2, h: WIDGET_H.streak },
-  { i: 'goals',    x: 2, y: 12,  w: 2, h: WIDGET_H.goals },
-  { i: 'forecast', x: 0, y: 27,  w: 4, h: WIDGET_H.forecast },
-  { i: 'stats',    x: 0, y: 40,  w: 4, h: WIDGET_H.stats },
-  { i: 'charts',   x: 0, y: 50,  w: 4, h: WIDGET_H.charts },
-  { i: 'weekly',   x: 0, y: 62,  w: 4, h: WIDGET_H.weekly },
-  { i: 'recent',   x: 0, y: 85,  w: 4, h: WIDGET_H.recent },
-  { i: 'calendar', x: 0, y: 104, w: 4, h: WIDGET_H.calendar },
-]
-
-const LAYOUT_STORAGE_KEY = 'ttt_dashboard_layout'
-
-function loadLayout(): Layout[] {
+function loadWidgets(): DashboardWidget[] {
   try {
-    const raw = localStorage.getItem(LAYOUT_STORAGE_KEY)
-    if (raw) {
-      const parsed = JSON.parse(raw) as Layout[]
-      if (
-        Array.isArray(parsed) &&
-        parsed.length === DEFAULT_LAYOUT.length &&
-        DEFAULT_LAYOUT.every(d => parsed.some(p => p.i === d.i))
-      ) return parsed
+    const parsed: unknown = JSON.parse(localStorage.getItem(LAYOUT_STORAGE_KEY) ?? 'null')
+    if (Array.isArray(parsed) && parsed.length === DEFAULT_WIDGETS.length &&
+      new Set(parsed.map(w => w?.id)).size === DEFAULT_WIDGETS.length &&
+      parsed.every(w => w && DEFAULT_ORDER.includes(w.id) &&
+        ['half', 'full'].includes(w.width) && typeof w.visible === 'boolean')) return parsed
+    // Keep the order and widths of layouts saved with the previous grid editor.
+    const legacy: unknown = JSON.parse(localStorage.getItem('ttt_dashboard_layout') ?? 'null')
+    if (Array.isArray(legacy) && legacy.length === DEFAULT_WIDGETS.length &&
+      new Set(legacy.map(w => w?.i)).size === DEFAULT_WIDGETS.length &&
+      legacy.every(w => w && DEFAULT_ORDER.includes(w.i) &&
+        [w.x, w.y, w.w].every(Number.isFinite))) {
+      return [...legacy].sort((a, b) => a.y - b.y || a.x - b.x).map(w => ({
+        id: w.i, width: w.w <= 2 ? 'half' : 'full', visible: true,
+      }))
     }
-  } catch { /* ignore */ }
-  return DEFAULT_LAYOUT
+  } catch { /* Use defaults if storage is unavailable or invalid. */ }
+  return DEFAULT_WIDGETS
 }
-
-// ─── Mobile detection ─────────────────────────────────────────────────────────
-
-function useIsDesktop(breakpoint = 768): boolean {
-  const [isDesktop, setIsDesktop] = useState(() => window.innerWidth >= breakpoint)
-
-  useEffect(() => {
-    const mq = window.matchMedia(`(min-width: ${breakpoint}px)`)
-    const handler = (e: MediaQueryListEvent) => setIsDesktop(e.matches)
-    mq.addEventListener('change', handler)
-    return () => mq.removeEventListener('change', handler)
-  }, [breakpoint])
-
-  return isDesktop
-}
-
-// ─── Grid widget wrapper ──────────────────────────────────────────────────────
-
-function SizeSelector({ size, onChange }: { size: WidgetSize; onChange: (size: WidgetSize) => void }) {
-  return (
-    <div className="flex items-center bg-deep rounded-md p-0.5 gap-0.5 flex-shrink-0">
-      {(['sm', 'md', 'lg'] as WidgetSize[]).map(s => (
-        <button
-          key={s}
-          onClick={() => onChange(s)}
-          title={s === 'sm' ? 'Small' : s === 'md' ? 'Medium' : 'Large'}
-          className={`w-5 h-5 rounded text-[10px] font-semibold transition-colors ${
-            size === s
-              ? 'bg-accent text-white'
-              : 'text-text-dim hover:text-text-muted hover:bg-hover'
-          }`}
-        >
-          {SIZE_LABEL[s]}
-        </button>
-      ))}
-    </div>
-  )
-}
-
-function GridWidget({
-  id, editMode, size, onSizeChange, children,
-}: {
-  id: SectionId
-  editMode: boolean
-  size: WidgetSize
-  onSizeChange: (size: WidgetSize) => void
-  children: React.ReactNode
-}) {
-  const { label, subtitle } = SECTION_META[id]
-
-  return (
-    <div className={`@container h-full flex flex-col gap-2 rounded-xl ${editMode ? 'ring-1 ring-accent/20' : ''}`}>
-      <div className="flex items-center gap-2 select-none h-7 flex-shrink-0 px-0.5">
-        {editMode && (
-          <button
-            className="drag-handle flex items-center justify-center w-6 h-6 rounded-md text-text-dim hover:text-text-muted hover:bg-hover cursor-grab active:cursor-grabbing transition-colors touch-none flex-shrink-0"
-            title={`Drag to reposition ${label}`}
-          >
-            <GripVertical className="w-4 h-4" />
-          </button>
-        )}
-        <span className="text-text-primary font-semibold text-sm flex-shrink-0">{label}</span>
-        <span className="text-text-dim text-xs flex-1 truncate">{subtitle}</span>
-        {editMode && <SizeSelector size={size} onChange={onSizeChange} />}
-      </div>
-      <div className="flex-1 min-h-0 overflow-y-auto">{children}</div>
-    </div>
-  )
-}
-
-// ─── Dashboard page ───────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
   const { user } = useAuth()
   const { activeAccount } = useAccount()
-  const isDesktop = useIsDesktop()
   const [dateRange, setDateRange] = useState<DateRange>(getDateRange('this_week'))
   const [trades, setTrades] = useState<DbTrade[]>([])
   const [allTrades, setAllTrades] = useState<DbTrade[]>([])
@@ -187,7 +73,11 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true)
   const [allLoading, setAllLoading] = useState(true)
   const [goalsLoading, setGoalsLoading] = useState(true)
-  const [layout, setLayout] = useState<Layout[]>(loadLayout)
+  const [widgets, setWidgets] = useState<DashboardWidget[]>(loadWidgets)
+  const [draggedId, setDraggedId] = useState<SectionId | null>(null)
+  const [dropId, setDropId] = useState<SectionId | null>(null)
+  const [saveError, setSaveError] = useState(false)
+  const [announcement, setAnnouncement] = useState('')
   const [editMode, setEditMode] = useState(false)
 
   const { settings: coachingSettings, updateSettings: updateCoachingSettings } = useCoachingSettings(user?.id ?? null)
@@ -246,31 +136,31 @@ export default function DashboardPage() {
   )
   const hasAnyTrades = allTrades.length > 0
 
-  const handleLayoutChange = useCallback((newLayout: Layout[]) => {
-    setLayout(prev => {
-      const prevKey = JSON.stringify(prev.map(({ i, x, y, w, h }) => ({ i, x, y, w, h })))
-      const nextKey = JSON.stringify(newLayout.map(({ i, x, y, w, h }) => ({ i, x, y, w, h })))
-      if (prevKey === nextKey) return prev
-      localStorage.setItem(LAYOUT_STORAGE_KEY, nextKey)
-      return newLayout
-    })
-  }, [])
+  useEffect(() => {
+    try {
+      localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify(widgets))
+      setSaveError(false)
+    } catch { setSaveError(true) }
+  }, [widgets])
 
-  const handleSizeChange = useCallback((id: SectionId, size: WidgetSize) => {
-    setLayout(prev => {
-      const w = SIZE_W[size]
-      const next = prev.map(item =>
-        item.i === id ? { ...item, w, x: Math.min(item.x, COLS - w) } : item
-      )
-      localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify(next))
+  function updateWidget(id: SectionId, update: Partial<DashboardWidget>) {
+    setWidgets(previous => previous.map(widget => widget.id === id ? { ...widget, ...update } : widget))
+  }
+
+  function moveWidget(id: SectionId, targetId: SectionId) {
+    if (id === targetId) return
+    setWidgets(previous => {
+      const next = [...previous]
+      const source = next.findIndex(w => w.id === id)
+      const target = next.findIndex(w => w.id === targetId)
+      const [widget] = next.splice(source, 1)
+      next.splice(target, 0, widget)
       return next
     })
-  }, [])
+    setAnnouncement(`${SECTION_META[id].label} moved`)
+  }
 
-  const handleResetLayout = useCallback(() => {
-    localStorage.removeItem(LAYOUT_STORAGE_KEY)
-    setLayout(DEFAULT_LAYOUT)
-  }, [])
+  const visibleWidgets = widgets.filter(widget => widget.visible)
 
   function renderContent(id: SectionId) {
     switch (id) {
@@ -308,9 +198,9 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="p-6 space-y-6 max-w-[1400px]">
+    <div className="p-4 sm:p-6 space-y-6 max-w-[1400px] mx-auto">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-text-primary text-xl font-bold">Dashboard</h1>
           {editMode && (
@@ -319,19 +209,19 @@ export default function DashboardPage() {
             </p>
           )}
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           {editMode && (
             <button
-              onClick={handleResetLayout}
+              onClick={() => { setWidgets(DEFAULT_WIDGETS); setAnnouncement('Default layout restored') }}
               className="text-text-dim hover:text-text-muted text-xs font-medium transition-colors"
             >
               Reset layout
             </button>
           )}
           <DateFilter value={dateRange} onChange={setDateRange} />
-          {isDesktop && (
-            <button
-              onClick={() => setEditMode(v => !v)}
+          <button
+              onClick={() => { setEditMode(v => !v); setDraggedId(null); setDropId(null) }}
+              aria-pressed={editMode}
               className={`flex items-center gap-2 rounded-lg px-3.5 py-2 text-sm font-medium transition-all ${
                 editMode
                   ? 'bg-accent text-white hover:bg-accent/90'
@@ -341,7 +231,6 @@ export default function DashboardPage() {
               {editMode ? <Check className="w-4 h-4" /> : <LayoutGrid className="w-4 h-4" />}
               {editMode ? 'Done' : 'Customize'}
             </button>
-          )}
           <Link
             to="/import"
             className="flex items-center gap-2 bg-accent hover:bg-accent/90 text-white rounded-lg px-3.5 py-2 text-sm font-medium transition-all"
@@ -371,49 +260,91 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Widgets */}
-      {(hasAnyTrades || loading) && (
-        isDesktop ? (
-          <GridLayout
-            layout={layout}
-            cols={COLS}
-            rowHeight={ROW_HEIGHT}
-            margin={MARGIN}
-            containerPadding={[0, 0]}
-            onLayoutChange={handleLayoutChange}
-            isDraggable={editMode}
-            isResizable={false}
-            draggableHandle=".drag-handle"
-            compactType="vertical"
-            useCSSTransforms
-          >
-            {layout.map(item => (
-              <div key={item.i}>
-                <GridWidget
-                  id={item.i as SectionId}
-                  editMode={editMode}
-                  size={sizeFromW(item.w)}
-                  onSizeChange={size => handleSizeChange(item.i as SectionId, size)}
-                >
-                  {renderContent(item.i as SectionId)}
-                </GridWidget>
-              </div>
-            ))}
-          </GridLayout>
-        ) : (
-          <div className="space-y-6">
-            {DEFAULT_ORDER.map(id => (
-              <div key={id} className="@container space-y-3">
-                <div className="flex items-center gap-2">
-                  <span className="text-text-primary font-semibold text-sm">{SECTION_META[id].label}</span>
-                  <span className="text-text-dim text-xs">{SECTION_META[id].subtitle}</span>
-                </div>
-                {renderContent(id)}
-              </div>
+      <p className="sr-only" role="status" aria-live="polite">{announcement}</p>
+      {editMode && (
+        <div className="bg-surface border border-accent/30 rounded-xl p-4 space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-sm font-medium text-text-primary">Your dashboard, your way</p>
+            <p className="text-xs text-text-muted" role="status">
+              {saveError ? 'Changes apply now, but could not be saved in this browser.' : 'Layout saves automatically in this browser.'}
+            </p>
+          </div>
+          <p className="text-xs text-text-muted">Choose visible widgets below. Half-width widgets expand to full width on smaller screens.</p>
+          <div className="flex flex-wrap gap-2">
+            {widgets.map(widget => (
+              <label key={widget.id} className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-xs cursor-pointer ${widget.visible ? 'border-accent/30 bg-accent/10 text-text-primary' : 'border-border text-text-muted'}`}>
+                <input type="checkbox" checked={widget.visible} onChange={event => updateWidget(widget.id, { visible: event.target.checked })} className="accent-accent" />
+                {SECTION_META[widget.id].label}
+              </label>
             ))}
           </div>
-        )
+        </div>
       )}
+      {visibleWidgets.length === 0 && (
+        <div className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-text-muted">
+          All widgets are hidden. <button onClick={() => setEditMode(true)} className="text-accent hover:underline">Choose widgets</button> to build your dashboard.
+        </div>
+      )}
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-5 items-start">
+        {visibleWidgets.map((widget, index) => {
+          const { id } = widget
+          const { label, subtitle } = SECTION_META[id]
+          return (
+            <section
+              key={id}
+              aria-labelledby={`widget-${id}`}
+              onDragOver={event => {
+                if (!editMode || !draggedId || draggedId === id) return
+                event.preventDefault()
+                event.dataTransfer.dropEffect = 'move'
+                setDropId(id)
+              }}
+              onDrop={event => {
+                event.preventDefault()
+                if (editMode && draggedId) moveWidget(draggedId, id)
+                setDraggedId(null)
+                setDropId(null)
+              }}
+              className={`@container min-w-0 space-y-3 rounded-xl ${widget.width === 'full' ? 'xl:col-span-2' : ''} ${editMode ? 'p-3 border border-dashed border-accent/30 bg-surface/30' : ''} ${dropId === id ? 'ring-2 ring-accent' : ''} ${draggedId === id ? 'opacity-50' : ''}`}
+            >
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  {editMode && (
+                    <button
+                      draggable
+                      onDragStart={event => {
+                        event.dataTransfer.setData('text/plain', id)
+                        event.dataTransfer.effectAllowed = 'move'
+                        setDraggedId(id)
+                      }}
+                      onDragEnd={() => { setDraggedId(null); setDropId(null) }}
+                      title={`Drag to reposition ${label}`}
+                      aria-label={`Drag to reposition ${label}; alternatively use the move buttons`}
+                      className="p-1.5 rounded-md text-text-muted hover:bg-hover cursor-grab active:cursor-grabbing"
+                    ><GripVertical className="w-4 h-4" /></button>
+                  )}
+                  <div className="min-w-0">
+                    <h2 id={`widget-${id}`} className="text-text-primary font-semibold text-sm">{label}</h2>
+                    <p className="text-text-dim text-xs mt-0.5">{subtitle}</p>
+                  </div>
+                </div>
+                {editMode && (
+                  <div className="flex flex-wrap items-center gap-1">
+                    <button disabled={index === 0} onClick={() => moveWidget(id, visibleWidgets[index - 1].id)} aria-label={`Move ${label} earlier`} title="Move earlier" className="p-2 rounded-md text-text-muted hover:bg-hover disabled:opacity-30"><ArrowUp className="w-4 h-4" /></button>
+                    <button disabled={index === visibleWidgets.length - 1} onClick={() => moveWidget(id, visibleWidgets[index + 1].id)} aria-label={`Move ${label} later`} title="Move later" className="p-2 rounded-md text-text-muted hover:bg-hover disabled:opacity-30"><ArrowDown className="w-4 h-4" /></button>
+                    <select aria-label={`${label} width`} value={widget.width} onChange={event => updateWidget(id, { width: event.target.value as WidgetWidth })} className="bg-deep border border-border rounded-md px-2 py-1.5 text-xs text-text-muted">
+                      <option value="half">Half width</option>
+                      <option value="full">Full width</option>
+                    </select>
+                    <button onClick={() => updateWidget(id, { visible: false })} aria-label={`Hide ${label}`} title={`Hide ${label}`} className="p-2 rounded-md text-text-muted hover:bg-hover"><EyeOff className="w-4 h-4" /></button>
+                  </div>
+                )}
+              </div>
+              <div className="min-w-0">{renderContent(id)}</div>
+            </section>
+          )
+        })}
+      </div>
     </div>
   )
 }
